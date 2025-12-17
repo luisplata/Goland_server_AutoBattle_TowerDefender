@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>WS Debug Client</title>
+</head>
+<body>
+  <h3>WebSocket Debug Client</h3>
+  <p>Abre la consola (F12)</p>
+
+  <script>
+    let ws = null;
+
+    // 1️⃣ Conectar
+    window.connectWS = function (gameId = 1) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        console.log("Ya conectado");
+        return;
+      }
+
+      ws = new WebSocket(`ws://localhost:8080/ws?gameId=${gameId}`);
+
+      ws.onopen = () => console.log("✅ Conectado al servidor");
+      ws.onclose = () => console.log("❌ Conexión cerrada");
+      ws.onerror = (e) => console.error("WS Error:", e);
+
+      ws.onmessage = (event) => {
+        console.log("⬇ Tick:", event.data);
+      };
+    };
+
+    // 2️⃣ Enviar comando
+    window.sendCmd = function (cmd) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.error("No conectado");
+        return;
+      }
+
+      ws.send(JSON.stringify(cmd));
+      console.log("⬆ Enviado:", cmd);
+    };
+
+    // 3️⃣ Cerrar conexión
+    window.closeWS = function () {
+      if (ws) {
+        ws.close();
+        ws = null;
+      }
+    };
+  </script>
+</body>
+</html>
