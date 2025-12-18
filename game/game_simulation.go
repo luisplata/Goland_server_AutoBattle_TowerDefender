@@ -51,15 +51,28 @@ func (s *GameSimulation) ApplyCommand(cmd command.Command) {
 			return
 		}
 
-		unitType := data["unitType"].(string)
-		lane := int(data["lane"].(float64))
+		slog.Warn("SpawnUnit Command Data", "data", data)
 
-		s.spawnUnit(cmd.GameID, cmd.PlayerID, unitType, lane)
+		unitType := data["unitType"].(string)
+		x_position := int(data["x"].(float64))
+		y_position := int(data["y"].(float64))
+
+		s.spawnUnit(cmd.GameID, cmd.PlayerID, unitType, x_position, y_position)
 	}
 }
 
-func (s *GameSimulation) spawnUnit(gameId int, playerId int, unitType string, lane int) {
+func (s *GameSimulation) spawnUnit(gameId int, playerId int, unitType string, x_position int, y_position int) {
+	slog.Info("Spawning unit", "tick", s.state.Tick, "gameId", gameId, "playerId", playerId, "unitType", unitType, "x", x_position, "y", y_position)
 
+	// Crear la unidad en el estado del juego
+	unit := s.state.SpawnUnit(playerId, unitType, x_position, y_position)
+
+	if unit == nil {
+		slog.Warn("Failed to spawn unit - invalid position", "tick", s.state.Tick, "x", x_position, "y", y_position)
+		return
+	}
+
+	slog.Info("Unit spawned successfully", "tick", s.state.Tick, "unitId", unit.ID, "playerId", playerId, "x", x_position, "y", y_position)
 }
 
 // =======================

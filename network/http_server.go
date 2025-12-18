@@ -49,6 +49,7 @@ func (s *HttpServer) handleSendCommand(w http.ResponseWriter, r *http.Request) {
 		GameID   int                 `json:"gameId"`
 		PlayerID int                 `json:"playerId"`
 		Type     command.CommandType `json:"type"`
+		Data     any                 `json:"data"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -65,6 +66,8 @@ func (s *HttpServer) handleSendCommand(w http.ResponseWriter, r *http.Request) {
 	cmd := command.Command{
 		PlayerID: payload.PlayerID,
 		Type:     payload.Type,
+		Data:     payload.Data,
+		GameID:   payload.GameID,
 	}
 
 	game.Commands.Enqueue(cmd)

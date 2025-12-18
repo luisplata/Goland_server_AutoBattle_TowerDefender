@@ -1,6 +1,7 @@
 package command
 
 type SpawnUnitData struct {
-	UnitType string `json:"unitType"`
-	Lane     int    `json:"lane"`
+	Type CommandType `json:"type"`
+	X    int         `json:"x"`
+	Y    int         `json:"y"`
 }

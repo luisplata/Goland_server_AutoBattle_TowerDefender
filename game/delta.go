@@ -7,18 +7,27 @@ type UnitMove struct {
 }
 
 type Delta struct {
-	Type  string     `json:"type"`
-	Tick  int        `json:"tick"`
-	Moved []UnitMove `json:"moved,omitempty"`
-	Dead  []int      `json:"dead,omitempty"`
+	Type    string       `json:"type"`
+	Tick    int          `json:"tick"`
+	Spawned []*UnitState `json:"spawned,omitempty"`
+	Moved   []UnitMove   `json:"moved,omitempty"`
+	Dead    []int        `json:"dead,omitempty"`
 }
 
 func BuildDelta(prev, curr Snapshot) Delta {
 	delta := Delta{
-		Type:  "delta",
-		Tick:  curr.Tick,
-		Moved: []UnitMove{},
-		Dead:  []int{},
+		Type:    "delta",
+		Tick:    curr.Tick,
+		Spawned: []*UnitState{},
+		Moved:   []UnitMove{},
+		Dead:    []int{},
+	}
+
+	// Detectar unidades nuevas (spawned)
+	for id, currUnit := range curr.Units {
+		if _, exists := prev.Units[id]; !exists {
+			delta.Spawned = append(delta.Spawned, currUnit)
+		}
 	}
 
 	// Detectar movimientos
