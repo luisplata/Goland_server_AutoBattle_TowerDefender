@@ -42,11 +42,24 @@ func (s *GameSimulation) ProcessTick() {
 // =======================
 
 func (s *GameSimulation) ApplyCommand(cmd command.Command) {
-	slog.Info("Applying command", "cmd", cmd, "playerId", cmd.PlayerID)
 	switch cmd.Type {
-	case command.CommandDummy:
-		// placeholder
+
+	case command.CommandSpawnUnit:
+		data, ok := cmd.Data.(map[string]any)
+		if !ok {
+			slog.Warn("Invalid spawn data")
+			return
+		}
+
+		unitType := data["unitType"].(string)
+		lane := int(data["lane"].(float64))
+
+		s.spawnUnit(cmd.GameID, cmd.PlayerID, unitType, lane)
 	}
+}
+
+func (s *GameSimulation) spawnUnit(gameId int, playerId int, unitType string, lane int) {
+
 }
 
 // =======================

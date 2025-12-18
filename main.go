@@ -13,16 +13,27 @@ func main() {
 	httpServer := network.NewHttpServer(gameManager, wsHub)
 	go httpServer.Start()
 
+	lastSnapshots := make(map[int]*game.Snapshot)
+
 	for {
 		games := gameManager.GetAllGames()
 
-		for _, game := range games {
-			if game.Clock.ShouldTick() {
-				game.Simulation.ProcessTick()
+		for _, g := range games {
+			if g.Clock.ShouldTick() {
+				g.Simulation.ProcessTick()
 
-				// 🔥 broadcast snapshot
-				snapshot := game.State.GetSnapshot()
-				wsHub.Broadcast(game.ID, snapshot)
+				currentSnapshot := game.BuildSnapshot(g.State)
+
+				// Enviar snapshot cada 20 ticks o si es la primera
+				if lastSnapshots[g.ID] == nil || g.State.Tick%20 == 0 {
+					wsHub.Broadcast(g.ID, currentSnapshot)
+					lastSnapshots[g.ID] = &currentSnapshot
+				} else {
+					// Enviar delta con cambios incrementales
+					delta := game.BuildDelta(*lastSnapshots[g.ID], currentSnapshot)
+					wsHub.Broadcast(g.ID, delta)
+					lastSnapshots[g.ID] = &currentSnapshot
+				}
 			}
 		}
 

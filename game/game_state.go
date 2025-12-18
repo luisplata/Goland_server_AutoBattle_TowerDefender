@@ -5,11 +5,11 @@ import "sync"
 type GameState struct {
 	mu sync.Mutex
 
-	Tick    int             `json:"tick"`
-	Players map[int]*Player `json:"players"`
-
 	nextPlayerID int
+	Tick         int                `json:"tick"`
+	Players      map[int]*Player    `json:"players"`
 	Units        map[int]*UnitState `json:"units"`
+	Map          *GameMap           `json:"map"`
 }
 
 type UnitState struct {
@@ -24,6 +24,7 @@ func NewGameState() *GameState {
 		Players:      make(map[int]*Player),
 		nextPlayerID: 1,
 		Units:        make(map[int]*UnitState),
+		Map:          NewGameMap(),
 	}
 }
 
@@ -48,6 +49,7 @@ func (g *GameState) GetSnapshot() GameState {
 		Tick:    g.Tick,
 		Players: playersCopy,
 		Units:   g.Units,
+		Map:     g.Map,
 	}
 }
 

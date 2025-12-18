@@ -9,6 +9,7 @@ type Game struct {
 	Clock      *GameClock
 	Commands   *command.CommandQueue
 	Snapshot   *Snapshot
+	Delta      *Delta
 }
 
 func NewGame(id int) *Game {
@@ -22,6 +23,7 @@ func NewGame(id int) *Game {
 		Clock:      NewGameClock(200),
 		Commands:   command.NewCommandQueue(),
 		Snapshot:   nil,
+		Delta:      nil,
 	}
 
 	simulation.BindGame(game)

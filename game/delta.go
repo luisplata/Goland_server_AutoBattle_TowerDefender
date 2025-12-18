@@ -15,10 +15,13 @@ type Delta struct {
 
 func BuildDelta(prev, curr Snapshot) Delta {
 	delta := Delta{
-		Type: "delta",
-		Tick: curr.Tick,
+		Type:  "delta",
+		Tick:  curr.Tick,
+		Moved: []UnitMove{},
+		Dead:  []int{},
 	}
 
+	// Detectar movimientos
 	for id, currUnit := range curr.Units {
 		prevUnit, exists := prev.Units[id]
 		if !exists {
@@ -31,6 +34,13 @@ func BuildDelta(prev, curr Snapshot) Delta {
 				X:  currUnit.X,
 				Y:  currUnit.Y,
 			})
+		}
+	}
+
+	// Detectar unidades muertas
+	for id := range prev.Units {
+		if _, exists := curr.Units[id]; !exists {
+			delta.Dead = append(delta.Dead, id)
 		}
 	}
 

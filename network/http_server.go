@@ -78,9 +78,15 @@ func (s *HttpServer) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 	}
 
 	game := s.manager.CreateGame()
-	json.NewEncoder(w).Encode(map[string]int{
-		"gameId": game.ID,
-	})
+	snapshot := game.State.GetSnapshot()
+
+	response := map[string]interface{}{
+		"gameId":   game.ID,
+		"snapshot": snapshot,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
 
 func (s *HttpServer) handleGameState(w http.ResponseWriter, r *http.Request) {
