@@ -26,12 +26,12 @@ func main() {
 
 				// Enviar snapshot cada 20 ticks o si es la primera
 				if lastSnapshots[g.ID] == nil || g.State.Tick%20 == 0 {
-					wsHub.Broadcast(g.ID, currentSnapshot)
+					wsHub.Broadcast(g.ID, game.SnapshotToUpdate(currentSnapshot))
 					lastSnapshots[g.ID] = &currentSnapshot
 				} else {
 					// Enviar delta con cambios incrementales
 					delta := game.BuildDelta(*lastSnapshots[g.ID], currentSnapshot)
-					wsHub.Broadcast(g.ID, delta)
+					wsHub.Broadcast(g.ID, game.DeltaToUpdate(delta))
 					lastSnapshots[g.ID] = &currentSnapshot
 				}
 			}

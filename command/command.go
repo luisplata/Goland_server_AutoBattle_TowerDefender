@@ -6,6 +6,7 @@ const (
 	CommandDummy     CommandType = "dummy"
 	CommandSpawnUnit CommandType = "spawn_unit"
 	CommandUpgrade   CommandType = "upgrade"
+	CommandMoveUnit  CommandType = "move_unit"
 )
 
 type Command struct {
