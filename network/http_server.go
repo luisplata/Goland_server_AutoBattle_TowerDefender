@@ -42,8 +42,43 @@ func (s *HttpServer) Start() {
 	http.HandleFunc("/game/state", s.handleGameState)
 	http.HandleFunc("/command/send", s.handleSendCommand)
 	http.HandleFunc("/ws", s.handleWebSocket)
+	http.HandleFunc("/openapi.yml", s.handleOpenAPI)
+	http.HandleFunc("/docs", s.handleSwaggerUI)
 
 	http.ListenAndServe(":8080", nil)
+}
+
+func (s *HttpServer) handleOpenAPI(w http.ResponseWriter, r *http.Request) {
+	enableCORS(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	http.ServeFile(w, r, "openapi.yml")
+}
+
+func (s *HttpServer) handleSwaggerUI(w http.ResponseWriter, r *http.Request) {
+	enableCORS(w)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte(`<!DOCTYPE html>
+<html>
+  <head>
+    <title>Swagger UI</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css" />
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script>
+      window.onload = () => {
+        SwaggerUIBundle({
+          url: '/openapi.yml',
+          dom_id: '#swagger-ui',
+        });
+      };
+    </script>
+  </body>
+</html>`))
 }
 
 func (s *HttpServer) handleSendCommand(w http.ResponseWriter, r *http.Request) {

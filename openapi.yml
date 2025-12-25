@@ -1,0 +1,220 @@
+openapi: 3.0.3
+info:
+  title: Autobattle Server API
+  version: 1.0.0
+  description: |
+    Endpoints para crear/join juegos, consultar estado y enviar comandos.
+servers:
+  - url: http://localhost:8080
+paths:
+  /game/create:
+    post:
+      summary: Crear un nuevo juego
+      description: Crea un juego nuevo. Opcionalmente acepta configuración de fases.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                config:
+                  $ref: '#/components/schemas/PhaseConfig'
+      responses:
+        '200':
+          description: Juego creado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  gameId:
+                    type: integer
+                  snapshot:
+                    $ref: '#/components/schemas/Snapshot'
+  /game/join:
+    post:
+      summary: Unirse a un juego existente
+      parameters:
+        - in: query
+          name: gameId
+          schema:
+            type: integer
+          required: true
+      responses:
+        '200':
+          description: Jugador creado/asignado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Player'
+        '404':
+          description: Juego no encontrado
+  /game/state:
+    get:
+      summary: Obtener snapshot actual del juego
+      parameters:
+        - in: query
+          name: gameId
+          schema:
+            type: integer
+          required: true
+      responses:
+        '200':
+          description: Snapshot del estado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+        '404':
+          description: Juego no encontrado
+  /command/send:
+    post:
+      summary: Enviar un comando al juego
+      description: Actualmente soporta spawn_unit, move_unit y ready.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommandPayload'
+      responses:
+        '202':
+          description: Comando aceptado en cola
+        '404':
+          description: Juego no encontrado
+        '400':
+          description: Payload inválido
+  /ws:
+    get:
+      summary: WebSocket para actualizaciones de juego
+      description: |
+        Conectar con query param `gameId`. Recibirás mensajes de tipo `update` (snapshot/delta) y `phase_changed`.
+      parameters:
+        - in: query
+          name: gameId
+          schema:
+            type: integer
+          required: true
+      responses:
+        '101':
+          description: Upgrade a WebSocket
+components:
+  schemas:
+    PhaseConfig:
+      type: object
+      properties:
+        turnStartDuration:
+          type: integer
+          example: 15
+        preparationDuration:
+          type: integer
+          example: 150
+        battleDuration:
+          type: integer
+          example: 25
+        turnEndDuration:
+          type: integer
+          example: 10
+        aiReadyDelay:
+          type: integer
+          example: 5
+    Player:
+      type: object
+      properties:
+        id:
+          type: integer
+        isAi:
+          type: boolean
+        hand:
+          type: array
+          items:
+            type: string
+          description: Mano actual del jugador (solo en HTTP snapshot)
+        deckCount:
+          type: integer
+          description: Cartas restantes en mazo
+    Unit:
+      type: object
+      properties:
+        id:
+          type: integer
+        playerId:
+          type: integer
+        unitType:
+          type: string
+        x:
+          type: integer
+        y:
+          type: integer
+        hp:
+          type: integer
+    Snapshot:
+      type: object
+      properties:
+        type:
+          type: string
+          example: snapshot
+        tick:
+          type: integer
+        units:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/Unit'
+        players:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/Player'
+        currentPhase:
+          type: string
+        turnNumber:
+          type: integer
+        humanPlayerId:
+          type: integer
+        aiPlayerId:
+          type: integer
+        humanPlayerReady:
+          type: boolean
+        aiPlayerReady:
+          type: boolean
+        config:
+          $ref: '#/components/schemas/PhaseConfig'
+    CommandPayload:
+      type: object
+      required: [gameId, playerId, type]
+      properties:
+        gameId:
+          type: integer
+        playerId:
+          type: integer
+        type:
+          type: string
+          enum: [spawn_unit, move_unit, ready, end_turn]
+        data:
+          oneOf:
+            - $ref: '#/components/schemas/SpawnUnitData'
+            - $ref: '#/components/schemas/MoveUnitData'
+            - type: object
+              nullable: true
+    SpawnUnitData:
+      type: object
+      required: [unitType, x, y]
+      properties:
+        unitType:
+          type: string
+          description: Carta/unidad a jugar (debe estar en la mano)
+          example: tower
+        x:
+          type: integer
+        y:
+          type: integer
+    MoveUnitData:
+      type: object
+      required: [unitId, x, y]
+      properties:
+        unitId:
+          type: integer
+        x:
+          type: integer
+        y:
+          type: integer
