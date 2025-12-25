@@ -16,6 +16,13 @@ const (
 	TerrainWater = 2
 )
 
+// Parámetros de generación de ruido
+const (
+	noiseScale     = 0.035 // Escala menor -> manchas más grandes
+	waterThreshold = 0.42  // Mayor probabilidad de agua
+	pathThreshold  = 0.50  // Camino entre agua y pasto
+)
+
 type Tile struct {
 	X         int  `json:"x"`
 	Y         int  `json:"y"`
@@ -47,16 +54,13 @@ func NewGameMap() *GameMap {
 			terrainID := TerrainGrass
 			walkable := true
 
-			if noiseValue < 0.3 {
-				// Agua
+			if noiseValue < waterThreshold {
 				terrainID = TerrainWater
 				walkable = false
-			} else if noiseValue < 0.4 {
-				// Camino
+			} else if noiseValue < pathThreshold {
 				terrainID = TerrainPath
 				walkable = true
 			} else {
-				// Pasto
 				terrainID = TerrainGrass
 				walkable = true
 			}
@@ -76,9 +80,8 @@ func NewGameMap() *GameMap {
 // Implementación simple de Perlin noise 2D
 func perlinNoise(x, y float64) float64 {
 	// Escalar coordenadas
-	scale := 0.05
-	x *= scale
-	y *= scale
+	x *= noiseScale
+	y *= noiseScale
 
 	// Obtener coordenadas de la celda
 	x0 := math.Floor(x)
@@ -136,4 +139,12 @@ func (m *GameMap) IsWalkable(x, y int) bool {
 		return false
 	}
 	return m.Tiles[y][x].Walkable
+}
+
+// GetTile retorna el tile en (x,y) y un flag de validez.
+func (m *GameMap) GetTile(x, y int) (Tile, bool) {
+	if x < 0 || x >= m.Width || y < 0 || y >= m.Height {
+		return Tile{}, false
+	}
+	return m.Tiles[y][x], true
 }

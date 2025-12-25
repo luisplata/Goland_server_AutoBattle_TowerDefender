@@ -26,6 +26,18 @@ func (gm *GameManager) CreateGame() *Game {
 	return game
 }
 
+// CreateGameWithConfig crea un juego con configuración personalizada
+func (gm *GameManager) CreateGameWithConfig(config PhaseConfig) *Game {
+	gm.mu.Lock()
+	defer gm.mu.Unlock()
+
+	game := NewGameWithConfig(gm.nextID, config)
+	gm.games[game.ID] = game
+	gm.nextID++
+
+	return game
+}
+
 func (gm *GameManager) GetGame(id int) (*Game, bool) {
 	gm.mu.Lock()
 	defer gm.mu.Unlock()

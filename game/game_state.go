@@ -1,6 +1,40 @@
 package game
 
-import "sync"
+import (
+	"math/rand"
+	"sync"
+	"time"
+)
+
+// GamePhase representa las diferentes fases del juego
+type GamePhase string
+
+const (
+	PhaseTurnStart   GamePhase = "turn_start"  // Inicio de turno (efectos gráficos)
+	PhasePreparation GamePhase = "preparation" // Preparación (spawn unidades/edificios)
+	PhaseBattle      GamePhase = "battle"      // Batalla automática
+	PhaseTurnEnd     GamePhase = "turn_end"    // Fin de turno
+)
+
+// PhaseConfig define la duración de cada fase en ticks
+type PhaseConfig struct {
+	TurnStartDuration   int `json:"turnStartDuration"`   // Ticks para fase turn_start
+	PreparationDuration int `json:"preparationDuration"` // Ticks máximo para preparation (o hasta que estén listos)
+	BattleDuration      int `json:"battleDuration"`      // Ticks para batalla (placeholder)
+	TurnEndDuration     int `json:"turnEndDuration"`     // Ticks para turn_end
+	AIReadyDelay        int `json:"aiReadyDelay"`        // Ticks que espera la IA para marcarse lista
+}
+
+// DefaultPhaseConfig retorna la configuración por defecto
+func DefaultPhaseConfig() PhaseConfig {
+	return PhaseConfig{
+		TurnStartDuration:   15,  // ~3 segundos
+		PreparationDuration: 150, // ~30 segundos
+		BattleDuration:      25,  // ~5 segundos
+		TurnEndDuration:     10,  // ~2 segundos
+		AIReadyDelay:        5,   // ~1 segundo
+	}
+}
 
 type GameState struct {
 	mu sync.Mutex
@@ -11,6 +45,39 @@ type GameState struct {
 	Players      map[int]*Player    `json:"players"`
 	Units        map[int]*UnitState `json:"units"`
 	Map          *GameMap           `json:"map"`
+
+	// Phase-based system
+	CurrentPhase         GamePhase   `json:"currentPhase"`  // Fase actual del juego
+	TurnNumber           int         `json:"turnNumber"`    // Número de turno actual
+	PhaseStartTick       int         `json:"-"`             // Tick en el que empezó la fase actual
+	PhaseChangedThisTick bool        `json:"-"`             // Flag para indicar si la fase cambió este tick
+	AIPlayerID           int         `json:"aiPlayerId"`    // ID del jugador AI
+	HumanPlayerID        int         `json:"humanPlayerId"` // ID del jugador humano
+	Config               PhaseConfig `json:"config"`        // Configuración de duración de fases
+
+	// Preparation phase flags
+	HumanPlayerReady bool `json:"humanPlayerReady"` // Si el jugador humano está listo
+	AIPlayerReady    bool `json:"aiPlayerReady"`    // Si la IA está lista
+}
+
+// defaultDeck devuelve un mazo básico con todas las cartas disponibles.
+func defaultDeck() []string {
+	return []string{
+		TypeTower,
+		TypeLandGenerator,
+		TypeNavalGenerator,
+		TypeWall,
+		TypeWall,
+		TypeWarrior,
+	}
+}
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
+func shuffleCards(cards []string) {
+	rand.Shuffle(len(cards), func(i, j int) { cards[i], cards[j] = cards[j], cards[i] })
 }
 
 type UnitState struct {
@@ -20,12 +87,34 @@ type UnitState struct {
 	X        int    `json:"x"`
 	Y        int    `json:"y"`
 	HP       int    `json:"hp"`
-	// Server-side movement control (not serialized)
+	MaxHP    int    `json:"maxHp"`
+
+	// Combat properties
+	AttackDamage        int `json:"attackDamage"`
+	AttackRange         int `json:"attackRange"`
+	AttackIntervalTicks int `json:"-"`
+	NextAttackTick      int `json:"-"`
+
+	// Movement control (not serialized)
 	TargetX           int  `json:"-"`
 	TargetY           int  `json:"-"`
 	MoveIntervalTicks int  `json:"-"`
 	NextMoveTick      int  `json:"-"`
 	CanMove           bool `json:"-"`
+
+	// Generator properties
+	IsGenerator        bool   `json:"isGenerator"`
+	GeneratedUnitType  string `json:"generatedUnitType,omitempty"`
+	GenerationInterval int    `json:"-"`
+	NextGenerationTick int    `json:"-"`
+	UnitsGenerated     int    `json:"-"`
+	MaxUnitsGenerated  int    `json:"-"`
+
+	// Blocking
+	IsBlocker bool `json:"isBlocker"`
+
+	// Category for pathfinding
+	Category UnitCategory `json:"category"`
 }
 
 func NewGameState() *GameState {
@@ -35,7 +124,17 @@ func NewGameState() *GameState {
 		nextUnitID:   1,
 		Units:        make(map[int]*UnitState),
 		Map:          NewGameMap(),
+		CurrentPhase: PhaseTurnStart, // Empezar en la fase de inicio de turno
+		TurnNumber:   1,
+		Config:       DefaultPhaseConfig(), // Usar configuración por defecto
 	}
+}
+
+// NewGameStateWithConfig crea un nuevo estado de juego con configuración personalizada
+func NewGameStateWithConfig(config PhaseConfig) *GameState {
+	state := NewGameState()
+	state.Config = config
+	return state
 }
 
 func (g *GameState) AdvanceTick() {
@@ -52,14 +151,26 @@ func (g *GameState) GetSnapshot() GameState {
 
 	playersCopy := make(map[int]*Player)
 	for id, p := range g.Players {
-		playersCopy[id] = &Player{ID: p.ID}
+		playersCopy[id] = &Player{
+			ID:        p.ID,
+			IsAI:      p.IsAI,
+			Hand:      append([]string{}, p.Hand...),
+			DeckCount: p.DeckCount,
+		}
 	}
 
 	return GameState{
-		Tick:    g.Tick,
-		Players: playersCopy,
-		Units:   g.Units,
-		Map:     g.Map,
+		Tick:             g.Tick,
+		Players:          playersCopy,
+		Units:            g.Units,
+		Map:              g.Map,
+		CurrentPhase:     g.CurrentPhase,
+		TurnNumber:       g.TurnNumber,
+		AIPlayerID:       g.AIPlayerID,
+		HumanPlayerID:    g.HumanPlayerID,
+		HumanPlayerReady: g.HumanPlayerReady,
+		AIPlayerReady:    g.AIPlayerReady,
+		Config:           g.Config,
 	}
 }
 
@@ -71,10 +182,150 @@ func (g *GameState) AddPlayer() *Player {
 	player := &Player{
 		ID: g.nextPlayerID,
 	}
+	player.Deck = defaultDeck()
+	shuffleCards(player.Deck)
+	player.DeckCount = len(player.Deck)
 	g.Players[player.ID] = player
-	g.nextPlayerID++
 
+	// Si es el primer jugador (humano), crear también el jugador AI
+	if g.nextPlayerID == 1 {
+		g.HumanPlayerID = player.ID
+
+		// Crear jugador AI
+		g.nextPlayerID++
+		aiPlayer := &Player{
+			ID:   g.nextPlayerID,
+			IsAI: true,
+		}
+		g.Players[aiPlayer.ID] = aiPlayer
+		g.AIPlayerID = aiPlayer.ID
+	}
+
+	g.nextPlayerID++
 	return player
+}
+
+// drawCardLocked roba una carta del mazo del jugador (requiere lock tomado).
+func (g *GameState) drawCardLocked(p *Player) (string, bool) {
+	if len(p.Deck) == 0 {
+		return "", false
+	}
+	card := p.Deck[0]
+	p.Deck = p.Deck[1:]
+	p.Hand = append(p.Hand, card)
+	p.DeckCount = len(p.Deck)
+	return card, true
+}
+
+// DrawCard roba una carta para el jugador.
+func (g *GameState) DrawCard(playerID int) (string, bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	p, ok := g.Players[playerID]
+	if !ok {
+		return "", false
+	}
+	return g.drawCardLocked(p)
+}
+
+// ConsumeCardFromHand remueve una carta específica de la mano del jugador.
+func (g *GameState) ConsumeCardFromHand(playerID int, unitType string) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	p, ok := g.Players[playerID]
+	if !ok {
+		return false
+	}
+	for i, c := range p.Hand {
+		if c == unitType {
+			p.Hand = append(p.Hand[:i], p.Hand[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
+// drawForAllPlayersLocked roba una carta para cada jugador (requiere lock tomado).
+func (g *GameState) drawForAllPlayersLocked() {
+	for _, p := range g.Players {
+		g.drawCardLocked(p)
+	}
+}
+
+// AdvancePhase avanza a la siguiente fase del juego
+func (g *GameState) AdvancePhase() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	switch g.CurrentPhase {
+	case PhaseTurnStart:
+		g.CurrentPhase = PhasePreparation
+		g.drawForAllPlayersLocked()
+		g.HumanPlayerReady = false
+		g.AIPlayerReady = false
+
+	case PhasePreparation:
+		g.CurrentPhase = PhaseBattle
+
+	case PhaseBattle:
+		g.CurrentPhase = PhaseTurnEnd
+
+	case PhaseTurnEnd:
+		g.CurrentPhase = PhaseTurnStart
+		g.TurnNumber++
+	}
+
+	g.PhaseStartTick = g.Tick
+	g.PhaseChangedThisTick = true
+}
+
+// SetPlayerReady marca al jugador como listo en la fase de preparación
+func (g *GameState) SetPlayerReady(playerID int, ready bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if playerID == g.HumanPlayerID {
+		g.HumanPlayerReady = ready
+	} else if playerID == g.AIPlayerID {
+		g.AIPlayerReady = ready
+	}
+}
+
+// AreBothPlayersReady verifica si ambos jugadores están listos
+func (g *GameState) AreBothPlayersReady() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	return g.HumanPlayerReady && g.AIPlayerReady
+}
+
+// CanPlayerAct verifica si un jugador puede realizar acciones en la fase actual
+func (g *GameState) CanPlayerAct(playerID int) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	// Solo se pueden realizar acciones en la fase de preparación
+	return g.CurrentPhase == PhasePreparation
+}
+
+// GetCurrentPhase retorna la fase actual del juego
+func (g *GameState) GetCurrentPhase() GamePhase {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	return g.CurrentPhase
+}
+
+// DidPhaseChange verifica si la fase cambió este tick y resetea el flag
+func (g *GameState) DidPhaseChange() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	changed := g.PhaseChangedThisTick
+	g.PhaseChangedThisTick = false // Reset para el próximo tick
+	return changed
 }
 
 // SpawnUnit crea una nueva unidad en el juego
@@ -83,7 +334,7 @@ func (g *GameState) SpawnUnit(playerID int, unitType string, x, y int) *UnitStat
 	defer g.mu.Unlock()
 
 	// Validar posición
-	if !g.Map.IsWalkable(x, y) {
+	if !g.canUnitTypeEnter(unitType, -1, x, y) {
 		return nil
 	}
 
@@ -154,27 +405,100 @@ func (g *GameState) SetUnitDestination(playerID, unitID, x, y int) bool {
 
 // applyUnitStats assigns movement properties based on UnitType.
 func (g *GameState) applyUnitStats(unit *UnitState) {
-	switch unit.UnitType {
-	case "warrior":
-		unit.CanMove = true
-		unit.MoveIntervalTicks = 5 // 1 tile per ~1s if tick=200ms
-		unit.NextMoveTick = g.Tick
-		unit.HP = 100
-	case "tower":
-		unit.CanMove = false
-		unit.MoveIntervalTicks = 0
+	stats := GetUnitStats(unit.UnitType)
+
+	// Aplicar stats básicas
+	unit.HP = stats.HP
+	unit.MaxHP = stats.HP
+	unit.Category = stats.Category
+
+	// Aplicar propiedades de movimiento
+	unit.CanMove = stats.CanMove
+	unit.MoveIntervalTicks = stats.MoveIntervalTicks
+	if stats.CanMove {
+		unit.NextMoveTick = g.Tick + stats.MoveIntervalTicks
+	} else {
 		unit.NextMoveTick = 0
-		unit.HP = 300
-	default:
-		// default mobile unit
-		unit.CanMove = true
-		unit.MoveIntervalTicks = 5
-		unit.NextMoveTick = g.Tick
 	}
+
+	// Aplicar propiedades de combate
+	unit.AttackDamage = stats.AttackDamage
+	unit.AttackRange = stats.AttackRange
+	unit.AttackIntervalTicks = stats.AttackIntervalTicks
+	if stats.AttackDamage > 0 {
+		unit.NextAttackTick = g.Tick + stats.AttackIntervalTicks
+	} else {
+		unit.NextAttackTick = 0
+	}
+
+	// Aplicar propiedades de generador
+	unit.IsGenerator = stats.IsGenerator
+	unit.GeneratedUnitType = stats.GeneratedUnitType
+	unit.GenerationInterval = stats.GenerationInterval
+	unit.MaxUnitsGenerated = stats.MaxUnitsGenerated
+	if stats.IsGenerator {
+		unit.NextGenerationTick = g.Tick + stats.GenerationInterval
+	} else {
+		unit.NextGenerationTick = 0
+	}
+
+	// Aplicar propiedades de bloqueo
+	unit.IsBlocker = stats.IsBlocker
 }
 
-// isTileAllowedForUnit checks terrain constraints for a given unit type.
+// canUnitTypeEnter checks if a unit of unitType can enter tile (x,y).
+// skipUnitID allows ignoring a specific unit occupying that tile (useful for movement of that unit).
+func (g *GameState) canUnitTypeEnter(unitType string, skipUnitID int, x, y int) bool {
+	// Bounds & terrain
+	tile, ok := g.Map.GetTile(x, y)
+	if !ok {
+		return false
+	}
+
+	stats := GetUnitStats(unitType)
+
+	switch stats.Category {
+	case CategoryNavalUnit:
+		// Navales solo en agua
+		if tile.TerrainID != TerrainWater {
+			return false
+		}
+	default:
+		// Estructuras y terrestres solo en tiles walkable (no agua)
+		if !tile.Walkable {
+			return false
+		}
+	}
+
+	// Ocupación: no permitir dos unidades en el mismo tile y respetar bloqueadores
+	for _, other := range g.Units {
+		if other.ID == skipUnitID {
+			continue
+		}
+		if other.X == x && other.Y == y {
+			return false
+		}
+	}
+
+	return true
+}
+
+// isTileAllowedForUnit checks terrain and blocking constraints for the given unit.
 func (g *GameState) isTileAllowedForUnit(unit *UnitState, x, y int) bool {
-	// For now, warriors/towers use map walkability. Extend for boats later.
-	return g.Map.IsWalkable(x, y)
+	return g.canUnitTypeEnter(unit.UnitType, unit.ID, x, y)
+}
+
+// findSpawnPosition intenta encontrar una posición válida para un unitType.
+func (g *GameState) findSpawnPosition(unitType string, attempts int) (int, int, bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	for i := 0; i < attempts; i++ {
+		x := rand.Intn(g.Map.Width)
+		y := rand.Intn(g.Map.Height)
+		if g.canUnitTypeEnter(unitType, -1, x, y) {
+			return x, y, true
+		}
+	}
+	return 0, 0, false
 }

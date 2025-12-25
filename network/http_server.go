@@ -29,6 +29,13 @@ func NewHttpServer(manager *game.GameManager, hub *WsHub) *HttpServer {
 	}
 }
 
+// enableCORS adds CORS headers to allow requests from browsers
+func enableCORS(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+}
+
 func (s *HttpServer) Start() {
 	http.HandleFunc("/game/create", s.handleCreateGame)
 	http.HandleFunc("/game/join", s.handleJoin)
@@ -40,6 +47,11 @@ func (s *HttpServer) Start() {
 }
 
 func (s *HttpServer) handleSendCommand(w http.ResponseWriter, r *http.Request) {
+	enableCORS(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -75,16 +87,41 @@ func (s *HttpServer) handleSendCommand(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *HttpServer) handleCreateGame(w http.ResponseWriter, r *http.Request) {
+	enableCORS(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
 
-	game := s.manager.CreateGame()
-	snapshot := game.State.GetSnapshot()
+	// Intentar leer configuración del body (opcional)
+	var requestBody struct {
+		Config *game.PhaseConfig `json:"config"`
+	}
+
+	var createdGame *game.Game
+
+	// Si hay body, intentar parsearlo
+	if r.ContentLength > 0 {
+		if err := json.NewDecoder(r.Body).Decode(&requestBody); err == nil && requestBody.Config != nil {
+			// Crear juego con configuración personalizada
+			createdGame = s.manager.CreateGameWithConfig(*requestBody.Config)
+		} else {
+			// Si hay error o no hay config, usar valores por defecto
+			createdGame = s.manager.CreateGame()
+		}
+	} else {
+		// Sin body, usar configuración por defecto
+		createdGame = s.manager.CreateGame()
+	}
+
+	snapshot := createdGame.State.GetSnapshot()
 
 	response := map[string]interface{}{
-		"gameId":   game.ID,
+		"gameId":   createdGame.ID,
 		"snapshot": snapshot,
 	}
 
@@ -93,6 +130,11 @@ func (s *HttpServer) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *HttpServer) handleGameState(w http.ResponseWriter, r *http.Request) {
+	enableCORS(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 	gameIDStr := r.URL.Query().Get("gameId")
 	gameID, err := strconv.Atoi(gameIDStr)
 	if err != nil {
@@ -111,6 +153,11 @@ func (s *HttpServer) handleGameState(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *HttpServer) handleJoin(w http.ResponseWriter, r *http.Request) {
+	enableCORS(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 	gameIDStr := r.URL.Query().Get("gameId")
 	gameID, err := strconv.Atoi(gameIDStr)
 

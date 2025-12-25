@@ -29,12 +29,17 @@ func (s *GameSimulation) ProcessTick() {
 		s.ApplyCommand(cmd)
 	}
 
-	// 2️⃣ Lógica del juego (orden SAGRADO)
-	s.Produce()
-	s.Move()
-	s.Block()
-	s.Attack()
-	s.Cleanup()
+	// 1.5️⃣ Procesar fases del juego
+	s.ProcessPhases()
+
+	// 2️⃣ Lógica del juego (solo en fase de batalla)
+	if s.state.GetCurrentPhase() == PhaseBattle {
+		s.Produce()
+		s.Move()
+		s.Block()
+		s.Attack()
+		s.Cleanup()
+	}
 }
 
 // =======================
@@ -42,6 +47,12 @@ func (s *GameSimulation) ProcessTick() {
 // =======================
 
 func (s *GameSimulation) ApplyCommand(cmd command.Command) {
+	// Validar que el jugador puede actuar en la fase actual
+	if cmd.Type != command.CommandReady && !s.state.CanPlayerAct(cmd.PlayerID) {
+		slog.Warn("Command rejected: not in preparation phase", "playerId", cmd.PlayerID, "commandType", cmd.Type, "currentPhase", s.state.GetCurrentPhase())
+		return
+	}
+
 	switch cmd.Type {
 
 	case command.CommandSpawnUnit:
@@ -51,11 +62,16 @@ func (s *GameSimulation) ApplyCommand(cmd command.Command) {
 			return
 		}
 
-		slog.Warn("SpawnUnit Command Data", "data", data)
+		slog.Info("SpawnUnit Command", "data", data)
 
 		unitType := data["unitType"].(string)
 		x_position := int(data["x"].(float64))
 		y_position := int(data["y"].(float64))
+
+		if !s.state.ConsumeCardFromHand(cmd.PlayerID, unitType) {
+			slog.Warn("Spawn rejected: card not in hand", "playerId", cmd.PlayerID, "unitType", unitType)
+			return
+		}
 
 		s.spawnUnit(cmd.GameID, cmd.PlayerID, unitType, x_position, y_position)
 
@@ -74,7 +90,104 @@ func (s *GameSimulation) ApplyCommand(cmd command.Command) {
 		if !okDest {
 			slog.Warn("SetUnitDestination failed", "tick", s.state.Tick, "playerId", cmd.PlayerID, "unitId", unitID, "x", x, "y", y)
 		}
+
+	case command.CommandReady:
+		slog.Info("Player ready", "playerId", cmd.PlayerID, "tick", s.state.Tick, "phase", s.state.GetCurrentPhase())
+		s.state.SetPlayerReady(cmd.PlayerID, true)
+
+	case command.CommandEndTurn:
+		// Backward compatibility - tratar como ready
+		slog.Info("Player ready (via end_turn)", "playerId", cmd.PlayerID, "tick", s.state.Tick)
+		s.state.SetPlayerReady(cmd.PlayerID, true)
 	}
+}
+
+// ProcessPhases maneja la transición automática entre fases
+func (s *GameSimulation) ProcessPhases() {
+	currentPhase := s.state.GetCurrentPhase()
+
+	s.state.mu.Lock()
+	ticksSincePhaseStart := s.state.Tick - s.state.PhaseStartTick
+	config := s.state.Config
+	s.state.mu.Unlock()
+
+	switch currentPhase {
+	case PhaseTurnStart:
+		// Fase de inicio: usa duración configurada
+		if ticksSincePhaseStart >= config.TurnStartDuration {
+			slog.Info("Advancing from TurnStart to Preparation", "tick", s.state.Tick, "turn", s.state.TurnNumber)
+			s.state.AdvancePhase()
+		}
+
+	case PhasePreparation:
+		// Fase de preparación: avanzar cuando ambos jugadores estén listos o timeout
+		if s.state.AreBothPlayersReady() {
+			slog.Info("Both players ready, advancing to Battle", "tick", s.state.Tick)
+			s.state.AdvancePhase()
+		} else if ticksSincePhaseStart >= config.PreparationDuration {
+			slog.Info("Preparation timeout, advancing to Battle", "tick", s.state.Tick)
+			s.state.AdvancePhase()
+		} else {
+			// La IA se marca como lista automáticamente después de algunos ticks
+			s.ProcessAIPreparation(ticksSincePhaseStart)
+		}
+
+	case PhaseBattle:
+		// Fase de batalla: usa duración configurada
+		if ticksSincePhaseStart >= config.BattleDuration {
+			slog.Info("Battle finished, advancing to TurnEnd", "tick", s.state.Tick)
+			s.state.AdvancePhase()
+		}
+
+	case PhaseTurnEnd:
+		// Fase de fin: usa duración configurada
+		if ticksSincePhaseStart >= config.TurnEndDuration {
+			slog.Info("Advancing from TurnEnd to TurnStart", "tick", s.state.Tick)
+			s.state.AdvancePhase()
+		}
+	}
+}
+
+// ProcessAIPreparation maneja la lógica de la IA en fase de preparación
+func (s *GameSimulation) ProcessAIPreparation(ticksSinceStart int) {
+	s.state.mu.Lock()
+	aiReadyDelay := s.state.Config.AIReadyDelay
+	aiPlayerID := s.state.AIPlayerID
+	s.state.mu.Unlock()
+
+	// La IA se marca como lista después del delay configurado
+	if ticksSinceStart >= aiReadyDelay {
+		s.playAICard()
+		s.state.SetPlayerReady(aiPlayerID, true)
+	}
+}
+
+// playAICard intenta jugar la primera carta en mano en una posición válida.
+func (s *GameSimulation) playAICard() {
+	// Obtener la primera carta de la mano del AI
+	s.state.mu.Lock()
+	aiID := s.state.AIPlayerID
+	p, ok := s.state.Players[aiID]
+	if !ok || len(p.Hand) == 0 {
+		s.state.mu.Unlock()
+		return
+	}
+	card := p.Hand[0]
+	s.state.mu.Unlock()
+
+	// Buscar posición válida
+	x, y, okPos := s.state.findSpawnPosition(card, 50)
+	if !okPos {
+		slog.Warn("AI could not find spawn position for card", "card", card)
+		return
+	}
+
+	// Consumir carta y spawnear
+	if !s.state.ConsumeCardFromHand(aiID, card) {
+		slog.Warn("AI failed to consume card", "card", card)
+		return
+	}
+	s.spawnUnit(0, aiID, card, x, y)
 }
 
 func (s *GameSimulation) spawnUnit(gameId int, playerId int, unitType string, x_position int, y_position int) {
@@ -95,7 +208,72 @@ func (s *GameSimulation) spawnUnit(gameId int, playerId int, unitType string, x_
 // Fases del Tick
 // =======================
 
-func (s *GameSimulation) Produce() {}
+func (s *GameSimulation) Produce() {
+	// Recolectar spawns para ejecutarlos fuera del lock
+	spawns := make([]struct {
+		playerID int
+		unitType string
+		x        int
+		y        int
+		genID    int
+	}, 0)
+
+	s.state.mu.Lock()
+	currentTick := s.state.Tick
+
+	for _, unit := range s.state.Units {
+		if !unit.IsGenerator {
+			continue
+		}
+		if unit.GenerationInterval <= 0 {
+			continue
+		}
+		if unit.MaxUnitsGenerated >= 0 && unit.UnitsGenerated >= unit.MaxUnitsGenerated {
+			continue
+		}
+		if currentTick < unit.NextGenerationTick {
+			continue
+		}
+
+		// Buscar un tile adyacente para spawnear
+		candidates := [][2]int{{unit.X + 1, unit.Y}, {unit.X - 1, unit.Y}, {unit.X, unit.Y + 1}, {unit.X, unit.Y - 1}}
+		spawned := false
+		for _, pos := range candidates {
+			x, y := pos[0], pos[1]
+			if s.state.canUnitTypeEnter(unit.GeneratedUnitType, -1, x, y) {
+				spawns = append(spawns, struct {
+					playerID int
+					unitType string
+					x        int
+					y        int
+					genID    int
+				}{playerID: unit.PlayerID, unitType: unit.GeneratedUnitType, x: x, y: y, genID: unit.ID})
+				unit.UnitsGenerated++
+				spawned = true
+				break
+			}
+		}
+
+		// Programar próximo intento (aunque no haya espacio) para evitar spam por tick
+		unit.NextGenerationTick = currentTick + unit.GenerationInterval
+
+		if !spawned {
+			slog.Warn("Generator had no space to spawn", "tick", currentTick, "generatorId", unit.ID)
+		}
+	}
+
+	s.state.mu.Unlock()
+
+	// Ejecutar spawns fuera del lock principal
+	for _, job := range spawns {
+		spawnedUnit := s.state.SpawnUnit(job.playerID, job.unitType, job.x, job.y)
+		if spawnedUnit != nil {
+			slog.Info("Generator spawned unit", "tick", currentTick, "generatorId", job.genID, "unitId", spawnedUnit.ID, "type", job.unitType, "x", job.x, "y", job.y)
+		} else {
+			slog.Warn("Generator failed to spawn unit", "tick", currentTick, "generatorId", job.genID, "type", job.unitType, "x", job.x, "y", job.y)
+		}
+	}
+}
 func (s *GameSimulation) Move() {
 	// Step toward target respecting per-unit move interval
 	s.state.mu.Lock()
@@ -165,6 +343,60 @@ func abs(v int) int {
 	}
 	return v
 }
-func (s *GameSimulation) Block()   {}
-func (s *GameSimulation) Attack()  {}
-func (s *GameSimulation) Cleanup() {}
+func (s *GameSimulation) Block() {}
+
+// Attack procesa ataques automáticos para unidades con daño y rango.
+func (s *GameSimulation) Attack() {
+	s.state.mu.Lock()
+	currentTick := s.state.Tick
+
+	for _, attacker := range s.state.Units {
+		if attacker.AttackDamage <= 0 {
+			continue
+		}
+		if currentTick < attacker.NextAttackTick {
+			continue
+		}
+
+		var target *UnitState
+		bestDist := 1_000_000
+		for _, candidate := range s.state.Units {
+			if candidate.PlayerID == attacker.PlayerID {
+				continue
+			}
+			dx := abs(attacker.X - candidate.X)
+			dy := abs(attacker.Y - candidate.Y)
+			dist := dx + dy // Manhattan
+			if dist <= attacker.AttackRange && dist < bestDist {
+				bestDist = dist
+				target = candidate
+			}
+		}
+
+		attacker.NextAttackTick = currentTick + attacker.AttackIntervalTicks
+		if target == nil {
+			continue
+		}
+
+		target.HP -= attacker.AttackDamage
+		slog.Info("Attack", "tick", currentTick, "attackerId", attacker.ID, "targetId", target.ID, "damage", attacker.AttackDamage, "targetHP", target.HP)
+	}
+
+	s.state.mu.Unlock()
+}
+
+// Cleanup elimina unidades con HP <= 0.
+func (s *GameSimulation) Cleanup() {
+	s.state.mu.Lock()
+	dead := make([]int, 0)
+	for id, unit := range s.state.Units {
+		if unit.HP <= 0 {
+			dead = append(dead, id)
+		}
+	}
+	for _, id := range dead {
+		slog.Info("Removing dead unit", "unitId", id)
+		delete(s.state.Units, id)
+	}
+	s.state.mu.Unlock()
+}

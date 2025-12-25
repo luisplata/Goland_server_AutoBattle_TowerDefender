@@ -7,6 +7,8 @@ const (
 	CommandSpawnUnit CommandType = "spawn_unit"
 	CommandUpgrade   CommandType = "upgrade"
 	CommandMoveUnit  CommandType = "move_unit"
+	CommandEndTurn   CommandType = "end_turn" // Deprecated - usar ready
+	CommandReady     CommandType = "ready"    // Jugador listo para pasar de fase
 )
 
 type Command struct {

@@ -20,9 +20,18 @@ func main() {
 
 		for _, g := range games {
 			if g.Clock.ShouldTick() {
+				// Guardar la fase anterior antes de procesar
+				previousPhase := g.State.GetCurrentPhase()
+
 				g.Simulation.ProcessTick()
 
 				currentSnapshot := game.BuildSnapshot(g.State)
+
+				// Detectar cambio de fase y enviar evento especial
+				if g.State.DidPhaseChange() {
+					phaseEvent := game.BuildPhaseChangeEvent(g.State, previousPhase)
+					wsHub.Broadcast(g.ID, phaseEvent)
+				}
 
 				// Enviar snapshot cada 20 ticks o si es la primera
 				if lastSnapshots[g.ID] == nil || g.State.Tick%20 == 0 {

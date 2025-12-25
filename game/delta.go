@@ -7,20 +7,34 @@ type UnitMove struct {
 }
 
 type Delta struct {
-	Type    string       `json:"type"`
-	Tick    int          `json:"tick"`
-	Spawned []*UnitState `json:"spawned,omitempty"`
-	Moved   []UnitMove   `json:"moved,omitempty"`
-	Dead    []int        `json:"dead,omitempty"`
+	Type             string       `json:"type"`
+	Tick             int          `json:"tick"`
+	Spawned          []*UnitState `json:"spawned,omitempty"`
+	Moved            []UnitMove   `json:"moved,omitempty"`
+	Dead             []int        `json:"dead,omitempty"`
+	CurrentPhase     GamePhase    `json:"currentPhase"`
+	TurnNumber       int          `json:"turnNumber"`
+	HumanPlayerID    int          `json:"humanPlayerId"`
+	AIPlayerID       int          `json:"aiPlayerId"`
+	HumanPlayerReady bool         `json:"humanPlayerReady"`
+	AIPlayerReady    bool         `json:"aiPlayerReady"`
+	Config           PhaseConfig  `json:"config"` // Configuración de fases
 }
 
 func BuildDelta(prev, curr Snapshot) Delta {
 	delta := Delta{
-		Type:    "delta",
-		Tick:    curr.Tick,
-		Spawned: []*UnitState{},
-		Moved:   []UnitMove{},
-		Dead:    []int{},
+		Type:             "delta",
+		Tick:             curr.Tick,
+		Spawned:          []*UnitState{},
+		Moved:            []UnitMove{},
+		Dead:             []int{},
+		CurrentPhase:     curr.CurrentPhase,
+		TurnNumber:       curr.TurnNumber,
+		HumanPlayerID:    curr.HumanPlayerID,
+		AIPlayerID:       curr.AIPlayerID,
+		HumanPlayerReady: curr.HumanPlayerReady,
+		AIPlayerReady:    curr.AIPlayerReady,
+		Config:           curr.Config,
 	}
 
 	// Detectar unidades nuevas (spawned)

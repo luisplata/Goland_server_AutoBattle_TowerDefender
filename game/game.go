@@ -29,3 +29,22 @@ func NewGame(id int) *Game {
 	simulation.BindGame(game)
 	return game
 }
+
+// NewGameWithConfig crea un nuevo juego con configuración personalizada
+func NewGameWithConfig(id int, config PhaseConfig) *Game {
+	state := NewGameStateWithConfig(config)
+	simulation := NewGameSimulation(state)
+
+	game := &Game{
+		ID:         id,
+		State:      state,
+		Simulation: simulation,
+		Clock:      NewGameClock(200),
+		Commands:   command.NewCommandQueue(),
+		Snapshot:   nil,
+		Delta:      nil,
+	}
+
+	simulation.BindGame(game)
+	return game
+}

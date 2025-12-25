@@ -10,9 +10,12 @@
 
   <script>
     let ws = null;
+    let gameId = 1;
+    let playerId = 1;
 
     // 1️⃣ Conectar
-    window.connectWS = function (gameId = 1) {
+    window.connectWS = function (gId = 1) {
+      gameId = gId;
       if (ws && ws.readyState === WebSocket.OPEN) {
         console.log("Ya conectado");
         return;
@@ -25,7 +28,20 @@
       ws.onerror = (e) => console.error("WS Error:", e);
 
       ws.onmessage = (event) => {
-        console.log("⬇ Tick:", event.data);
+        const data = JSON.parse(event.data);
+        
+        // Detectar evento de cambio de fase
+        if (data.type === 'phase_changed') {
+          console.log('🔄 CAMBIO DE FASE!', data);
+          console.log(`   De: ${data.previousPhase} → A: ${data.currentPhase} (Turno ${data.turnNumber})`);
+          return;
+        }
+        
+        console.log("⬇ Tick:", data);
+        if (data.currentPhase) {
+          const readyStatus = `👤 Humano: ${data.humanPlayerReady ? '✅' : '⏳'} | 🤖 AI: ${data.aiPlayerReady ? '✅' : '⏳'}`;
+          console.log(`🎮 Fase: ${data.currentPhase} | Turno: ${data.turnNumber} | ${readyStatus}`);
+        }
       };
     };
 
@@ -47,6 +63,268 @@
         ws = null;
       }
     };
+
+    // 🎮 Funciones de juego por turnos
+    
+    // Crear juego
+    window.createGame = async function(config) {
+      const body = config ? { config } : undefined;
+      const response = await fetch('http://localhost:8080/game/create', {
+        method: 'POST',
+        headers: config ? { 'Content-Type': 'application/json' } : {},
+        body: config ? JSON.stringify(body) : undefined
+      });
+      const data = await response.json();
+      console.log('🎮 Juego creado:', data);
+      gameId = data.gameId;
+      if (data.snapshot.config) {
+        console.log('⚙️ Configuración:', data.snapshot.config);
+      }
+      return data;
+    };
+
+    // Unirse al juego
+    window.joinGame = async function(gId = gameId) {
+      const response = await fetch(`http://localhost:8080/game/join?gameId=${gId}`, {
+        method: 'POST'
+      });
+      const data = await response.json();
+      console.log('👤 Jugador unido:', data);
+      playerId = data.id;
+      return data;
+    };
+
+    // Terminar turno
+    window.endTurn = async function() {
+      const response = await fetch('http://localhost:8080/command/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gameId: gameId,
+          playerId: playerId,
+          type: 'ready',
+          data: null
+        })
+      });
+      console.log('✅ Jugador listo');
+      return response.ok;
+    };
+
+    // Spawn unit
+    window.spawnUnit = async function(unitType, x, y) {
+      const response = await fetch('http://localhost:8080/command/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gameId: gameId,
+          playerId: playerId,
+          type: 'spawn_unit',
+          data: { unitType, x, y }
+        })
+      });
+      console.log(`🏗️ Spawn ${unitType} en (${x}, ${y})`);
+      return response.ok;
+    };
+
+      // 🏰 Spawn Torre
+      window.spawnTower = async function(x, y) {
+        return await spawnUnit('tower', x, y);
+      };
+
+      // 🏭 Spawn Generador Terrestre
+      window.spawnLandGenerator = async function(x, y) {
+        return await spawnUnit('land_generator', x, y);
+      };
+
+      // ⚓ Spawn Generador Naval
+      window.spawnNavalGenerator = async function(x, y) {
+        return await spawnUnit('naval_generator', x, y);
+      };
+
+      // 🧱 Spawn Muralla
+      window.spawnWall = async function(x, y) {
+        return await spawnUnit('wall', x, y);
+      };
+
+      // ⚔️ Spawn Guerrero (legacy/testing)
+      window.spawnWarrior = async function(x, y) {
+        return await spawnUnit('warrior', x, y);
+      };
+
+      // Obtener estado vía HTTP
+      window.getState = async function(gId = gameId) {
+        const response = await fetch(`http://localhost:8080/game/state?gameId=${gId}`);
+        return await response.json();
+      };
+
+      // 🧪 Prueba automática básica
+      // Crea juego con fases rápidas, se une, abre WS, juega la primera carta de la mano y marca ready.
+      window.runAutoBattleTest = async function() {
+        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+        // Busca un tile walkable con agua adyacente para colocar el generador naval
+        const findCoastTile = (map) => {
+          if (!map || !map.tiles) return null;
+          const h = map.height;
+          const w = map.width;
+          const tiles = map.tiles;
+          const dirs = [
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1],
+          ];
+          for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+              const t = tiles[y][x];
+              if (!t.walkable) continue; // tierra/camino
+              for (const [dx, dy] of dirs) {
+                const nx = x + dx;
+                const ny = y + dy;
+                if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+                const nt = tiles[ny][nx];
+                if (nt.terrainId === 2) { // agua adyacente
+                  return { x, y, waterNeighbor: { x: nx, y: ny } };
+                }
+              }
+            }
+          }
+          return null;
+        };
+
+        console.log('🚀 Iniciando prueba automática...');
+        const cfg = {
+          turnStartDuration: 5,
+          preparationDuration: 40,
+          battleDuration: 20,
+          turnEndDuration: 8,
+          aiReadyDelay: 2,
+        };
+
+        const game = await createGame(cfg);
+        await joinGame(game.gameId);
+        connectWS(game.gameId);
+
+        // Espera breve para que abra el WS
+        await sleep(300);
+
+        // Espera a que termine turn_start (~1s con esta config)
+        await sleep(1200);
+
+      // Obtener estado para conocer la mano
+      const state = await getState(game.gameId);
+      const me = state.players ? state.players[playerId] : null;
+      const hand = me && me.hand ? me.hand : [];
+      if (!hand.length) {
+        console.warn('⚠️ Mano vacía, no hay carta para jugar');
+      } else {
+        const card = hand[0];
+        console.log('🃏 Jugando carta:', card);
+
+        // Determinar posición según tipo
+        let pos = { x: 5, y: 5 };
+        if (card === 'naval_generator') {
+          const coast = findCoastTile(state.map);
+          if (coast) {
+            pos = { x: coast.x, y: coast.y };
+            console.log('🌊 Colocando generador naval en costa', pos);
+          } else {
+            console.warn('⚠️ No se encontró costa; usando posición por defecto (5,5). Puede fallar.');
+          }
+        } else if (card === 'land_generator') {
+          pos = { x: 6, y: 5 };
+        } else if (card === 'wall') {
+          pos = { x: 4, y: 5 };
+        } else if (card === 'tower') {
+          pos = { x: 5, y: 5 };
+        } else {
+          // fallback para warrior u otros
+          pos = { x: 7, y: 5 };
+        }
+
+        await spawnUnit(card, pos.x, pos.y);
+      }
+
+        // Listo para avanzar a batalla
+        await endTurn();
+
+        console.log('✅ Prueba enviada. Observa la consola WS para ataques/spawns.');
+      };
+
+    // Move unit
+    window.moveUnit = async function(unitId, x, y) {
+      const response = await fetch('http://localhost:8080/command/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gameId: gameId,
+          playerId: playerId,
+          type: 'move_unit',
+          data: { unitId, x, y }
+        })
+      });
+      console.log(`🚶 Mover unidad ${unitId} a (${x}, ${y})`);
+      return response.ok;
+    };
+
+    // Ayuda
+    window.help = function() {
+      console.log(`
+🎮 COMANDOS DISPONIBLES:
+========================
+
+📋 SETUP:
+  createGame(config)     - Crear un nuevo juego (config opcional)
+  joinGame(gameId)       - Unirse a un juego
+  connectWS(gameId)      - Conectar WebSocket
+
+🎯 ACCIONES:
+  spawnUnit(type, x, y)  - Crear unidad genérica
+  spawnTower(x, y)       - 🏰 Torre (500 HP, 25 daño, 5 rango)
+  spawnLandGenerator(x, y) - 🏭 Generador Terrestre (spawns land_soldier)
+  spawnNavalGenerator(x, y) - ⚓ Generador Naval (spawns naval_ship)
+  spawnWall(x, y)        - 🧱 Muralla (200 HP, bloquea paso)
+  spawnWarrior(x, y)     - ⚔️ Guerrero (legacy, para testing)
+  runAutoBattleTest()    - 🧪 Flujo completo rápido (crear, unir, WS, spawns, ready)
+  moveUnit(unitId, x, y) - Mover unidad
+  endTurn()              - Marcar como listo (avanza fase)
+
+🔌 WEBSOCKET:
+  closeWS()              - Cerrar conexión
+
+⚙️ CONFIGURACIÓN DE FASES:
+  Duración en ticks (1 tick = 200ms):
+  {
+    turnStartDuration: 15,   // ~3s - Inicio de turno
+    preparationDuration: 150, // ~30s - Preparación
+    battleDuration: 25,      // ~5s - Batalla
+    turnEndDuration: 10,     // ~2s - Fin de turno
+    aiReadyDelay: 5          // ~1s - Delay de IA
+  }
+
+📖 EJEMPLOS:
+  // Juego con valores por defecto
+  await createGame()
+  
+  // Juego con fases más rápidas
+  await createGame({
+    turnStartDuration: 5,
+    preparationDuration: 50,
+    battleDuration: 10,
+    turnEndDuration: 5,
+    aiReadyDelay: 2
+  })
+  
+  await joinGame()
+  connectWS()
+    await spawnTower(5, 5)
+    await spawnLandGenerator(10, 10)
+    await spawnWall(7, 7)
+  await endTurn()
+      `);
+    };
+
+    console.log('💡 Escribe help() para ver los comandos disponibles');
   </script>
 </body>
 </html>
