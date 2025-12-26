@@ -7,8 +7,9 @@ import (
 )
 
 type WsClient struct {
-	conn   *websocket.Conn
-	gameID int
+	conn     *websocket.Conn
+	gameID   int
+	playerID int
 }
 
 type WsHub struct {

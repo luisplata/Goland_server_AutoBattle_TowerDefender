@@ -58,6 +58,9 @@ type GameState struct {
 	// Preparation phase flags
 	HumanPlayerReady bool `json:"humanPlayerReady"` // Si el jugador humano está listo
 	AIPlayerReady    bool `json:"aiPlayerReady"`    // Si la IA está lista
+
+	// Hand tracking
+	HandUpdatedPlayers []int `json:"-"` // IDs de jugadores cuya mano cambió este tick
 }
 
 // defaultDeck devuelve un mazo básico con todas las cartas disponibles.
@@ -156,6 +159,7 @@ func (g *GameState) GetSnapshot() GameState {
 			IsAI:      p.IsAI,
 			Hand:      append([]string{}, p.Hand...),
 			DeckCount: p.DeckCount,
+			Connected: p.Connected,
 		}
 	}
 
@@ -205,6 +209,27 @@ func (g *GameState) AddPlayer() *Player {
 	return player
 }
 
+// SetPlayerConnected marca el estado de conexión de un jugador
+func (g *GameState) SetPlayerConnected(playerID int, connected bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if p, ok := g.Players[playerID]; ok {
+		p.Connected = connected
+	}
+}
+
+// IsPlayerConnected retorna true si el jugador está marcado como conectado
+func (g *GameState) IsPlayerConnected(playerID int) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if p, ok := g.Players[playerID]; ok {
+		return p.Connected
+	}
+	return false
+}
+
 // drawCardLocked roba una carta del mazo del jugador (requiere lock tomado).
 func (g *GameState) drawCardLocked(p *Player) (string, bool) {
 	if len(p.Deck) == 0 {
@@ -241,6 +266,7 @@ func (g *GameState) ConsumeCardFromHand(playerID int, unitType string) bool {
 	for i, c := range p.Hand {
 		if c == unitType {
 			p.Hand = append(p.Hand[:i], p.Hand[i+1:]...)
+			g.HandUpdatedPlayers = append(g.HandUpdatedPlayers, playerID)
 			return true
 		}
 	}
@@ -248,10 +274,15 @@ func (g *GameState) ConsumeCardFromHand(playerID int, unitType string) bool {
 }
 
 // drawForAllPlayersLocked roba una carta para cada jugador (requiere lock tomado).
-func (g *GameState) drawForAllPlayersLocked() {
+// Retorna lista de playerIDs que robaron carta.
+func (g *GameState) drawForAllPlayersLocked() []int {
+	updated := []int{}
 	for _, p := range g.Players {
-		g.drawCardLocked(p)
+		if _, ok := g.drawCardLocked(p); ok {
+			updated = append(updated, p.ID)
+		}
 	}
+	return updated
 }
 
 // AdvancePhase avanza a la siguiente fase del juego
@@ -262,7 +293,8 @@ func (g *GameState) AdvancePhase() {
 	switch g.CurrentPhase {
 	case PhaseTurnStart:
 		g.CurrentPhase = PhasePreparation
-		g.drawForAllPlayersLocked()
+		updated := g.drawForAllPlayersLocked()
+		g.HandUpdatedPlayers = updated
 		g.HumanPlayerReady = false
 		g.AIPlayerReady = false
 
@@ -326,6 +358,16 @@ func (g *GameState) DidPhaseChange() bool {
 	changed := g.PhaseChangedThisTick
 	g.PhaseChangedThisTick = false // Reset para el próximo tick
 	return changed
+}
+
+// DrainHandUpdates retorna los playerIDs con manos modificadas y resetea la lista.
+func (g *GameState) DrainHandUpdates() []int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	updated := g.HandUpdatedPlayers
+	g.HandUpdatedPlayers = nil
+	return updated
 }
 
 // SpawnUnit crea una nueva unidad en el juego

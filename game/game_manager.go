@@ -1,6 +1,9 @@
 package game
 
-import "sync"
+import (
+	"log/slog"
+	"sync"
+)
 
 type GameManager struct {
 	mu     sync.Mutex
@@ -55,4 +58,15 @@ func (gm *GameManager) GetAllGames() []*Game {
 		list = append(list, g)
 	}
 	return list
+}
+
+// EndGame elimina el juego y registra el motivo/derrota
+func (gm *GameManager) EndGame(id int, loserID int, reason string) {
+	gm.mu.Lock()
+	defer gm.mu.Unlock()
+
+	if g, ok := gm.games[id]; ok {
+		slog.Info("Ending game due to condition", "gameId", id, "loserId", loserID, "reason", reason, "tick", g.State.Tick, "turn", g.State.TurnNumber)
+		delete(gm.games, id)
+	}
 }

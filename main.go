@@ -33,6 +33,18 @@ func main() {
 					wsHub.Broadcast(g.ID, phaseEvent)
 				}
 
+				// Detectar cambios en manos y enviar eventos hand_updated
+				updatedPlayers := g.State.DrainHandUpdates()
+				if len(updatedPlayers) > 0 {
+					snap := g.State.GetSnapshot()
+					for _, pID := range updatedPlayers {
+						if p, ok := snap.Players[pID]; ok {
+							handEvent := game.BuildHandUpdateEvent(pID, p.Hand, p.DeckCount)
+							wsHub.Broadcast(g.ID, handEvent)
+						}
+					}
+				}
+
 				// Enviar snapshot cada 20 ticks o si es la primera
 				if lastSnapshots[g.ID] == nil || g.State.Tick%20 == 0 {
 					wsHub.Broadcast(g.ID, game.SnapshotToUpdate(currentSnapshot))

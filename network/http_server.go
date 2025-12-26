@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"autobattle-server/command"
 	"autobattle-server/game"
+
+	"log/slog"
 
 	"github.com/gorilla/websocket"
 )
@@ -219,23 +222,58 @@ func (s *HttpServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Optional: identify the player for connection tracking
+	var playerID int
+	if pStr := r.URL.Query().Get("playerId"); pStr != "" {
+		if p, convErr := strconv.Atoi(pStr); convErr == nil {
+			playerID = p
+		}
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
 
 	client := &WsClient{
-		conn:   conn,
-		gameID: gameID,
+		conn:     conn,
+		gameID:   gameID,
+		playerID: playerID,
 	}
 
 	s.wsHub.Add(client)
+
+	// Mark player connected if identified
+	if playerID > 0 {
+		if g, ok := s.manager.GetGame(gameID); ok {
+			g.State.SetPlayerConnected(playerID, true)
+			slog.Info("Player connected", "gameId", gameID, "playerId", playerID)
+		}
+	}
 
 	// lectura pasiva (mantiene viva la conexión)
 	go func() {
 		defer s.wsHub.Remove(client)
 		for {
 			if _, _, err := conn.ReadMessage(); err != nil {
+				// On disconnect mark player as disconnected and start timeout
+				if client.playerID > 0 {
+					if g, ok := s.manager.GetGame(client.gameID); ok {
+						g.State.SetPlayerConnected(client.playerID, false)
+						slog.Info("Player disconnected", "gameId", client.gameID, "playerId", client.playerID)
+
+						// Start 10s timeout to end game if still offline
+						go func(gid, pid int) {
+							time.Sleep(10 * time.Second)
+							if g2, ok2 := s.manager.GetGame(gid); ok2 {
+								if !g2.State.IsPlayerConnected(pid) {
+									slog.Info("Disconnect timeout reached; ending game", "gameId", gid, "playerId", pid)
+									s.manager.EndGame(gid, pid, "disconnect_timeout")
+								}
+							}
+						}(client.gameID, client.playerID)
+					}
+				}
 				return
 			}
 		}

@@ -89,7 +89,10 @@ paths:
     get:
       summary: WebSocket para actualizaciones de juego
       description: |
-        Conectar con query param `gameId`. Recibirás mensajes de tipo `update` (snapshot/delta) y `phase_changed`.
+        Conectar con query param `gameId`. Recibirás mensajes de tipo:
+        - `update` (snapshot/delta)
+        - `phase_changed` (cuando cambia la fase)
+        - `hand_updated` (cuando la mano de un jugador cambia por robo o consumo de carta)
       parameters:
         - in: query
           name: gameId
@@ -217,4 +220,19 @@ components:
         x:
           type: integer
         y:
+          type: integer
+    HandUpdateEvent:
+      type: object
+      description: Evento enviado por WS cuando la mano de un jugador cambia
+      properties:
+        type:
+          type: string
+          example: hand_updated
+        playerId:
+          type: integer
+        hand:
+          type: array
+          items:
+            type: string
+        deckCount:
           type: integer
