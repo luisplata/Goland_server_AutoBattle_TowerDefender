@@ -26,12 +26,16 @@ func BuildSnapshot(state *GameState) Snapshot {
 	unitsCopy := make(map[int]*UnitState, len(state.Units))
 	for id, unit := range state.Units {
 		unitsCopy[id] = &UnitState{
-			ID:       unit.ID,
-			PlayerID: unit.PlayerID,
-			UnitType: unit.UnitType,
-			X:        unit.X,
-			Y:        unit.Y,
-			HP:       unit.HP,
+			ID:             unit.ID,
+			PlayerID:       unit.PlayerID,
+			UnitType:       unit.UnitType,
+			X:              unit.X,
+			Y:              unit.Y,
+			HP:             unit.HP,
+			MaxHP:          unit.MaxHP,
+			AttackDamage:   unit.AttackDamage,
+			AttackRange:    unit.AttackRange,
+			DetectionRange: unit.DetectionRange,
 		}
 	}
 

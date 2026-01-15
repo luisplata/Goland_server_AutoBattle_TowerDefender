@@ -66,6 +66,9 @@ type GameState struct {
 
 	// Hand tracking
 	HandUpdatedPlayers []int `json:"-"` // IDs de jugadores cuya mano cambió este tick
+
+	// Timing config
+	TicksPerSecond int `json:"-"` // Para convertir DPS en ticks
 }
 
 // defaultDeck devuelve un mazo básico con todas las cartas disponibles.
@@ -98,10 +101,11 @@ type UnitState struct {
 	MaxHP    int    `json:"maxHp"`
 
 	// Combat properties
-	AttackDamage        int `json:"attackDamage"`
-	AttackRange         int `json:"attackRange"`
-	AttackIntervalTicks int `json:"-"`
-	NextAttackTick      int `json:"-"`
+	AttackDamage        int     `json:"attackDamage"`
+	AttackRange         int     `json:"attackRange"`
+	AttackIntervalTicks int     `json:"-"`
+	NextAttackTick      int     `json:"-"`
+	AttackDPS           float64 `json:"attackDps"`
 
 	// Movement control (not serialized)
 	TargetX           int  `json:"-"`
@@ -109,6 +113,12 @@ type UnitState struct {
 	MoveIntervalTicks int  `json:"-"`
 	NextMoveTick      int  `json:"-"`
 	CanMove           bool `json:"-"`
+
+	// Detection
+	DetectionRange int `json:"detectionRange"`
+
+	// Activity/animation state
+	Status string `json:"status"` // idle, moving, waiting, blocked, attacking
 
 	// Generator properties
 	IsGenerator        bool   `json:"isGenerator"`
@@ -562,12 +572,34 @@ func (g *GameState) applyUnitStats(unit *UnitState) {
 		unit.NextMoveTick = 0
 	}
 
+	// Aplicar propiedades de detección
+	unit.DetectionRange = stats.DetectionRange
+	if unit.DetectionRange <= 0 {
+		unit.DetectionRange = 5
+	}
+
 	// Aplicar propiedades de combate
 	unit.AttackDamage = stats.AttackDamage
 	unit.AttackRange = stats.AttackRange
-	unit.AttackIntervalTicks = stats.AttackIntervalTicks
-	if stats.AttackDamage > 0 {
-		unit.NextAttackTick = g.Tick + stats.AttackIntervalTicks
+	unit.AttackDPS = stats.AttackDPS
+	// Si hay DPS configurado, calcular intervalo por ticks en base a AttackDamage
+	if unit.AttackDPS > 0 && unit.AttackDamage > 0 {
+		tps := g.TicksPerSecond
+		if tps <= 0 {
+			tps = 5
+		}
+		// segundos entre ataques = daño por ataque / DPS
+		secondsBetween := float64(unit.AttackDamage) / unit.AttackDPS
+		intervalTicks := int(secondsBetween*float64(tps) + 0.5) // redondeo
+		if intervalTicks < 1 {
+			intervalTicks = 1
+		}
+		unit.AttackIntervalTicks = intervalTicks
+	} else {
+		unit.AttackIntervalTicks = stats.AttackIntervalTicks
+	}
+	if unit.AttackDamage > 0 {
+		unit.NextAttackTick = g.Tick + unit.AttackIntervalTicks
 	} else {
 		unit.NextAttackTick = 0
 	}
@@ -585,6 +617,9 @@ func (g *GameState) applyUnitStats(unit *UnitState) {
 
 	// Aplicar propiedades de bloqueo
 	unit.IsBlocker = stats.IsBlocker
+
+	// Estado inicial
+	unit.Status = "idle"
 }
 
 // canUnitTypeEnter checks if a unit of unitType can enter tile (x,y).

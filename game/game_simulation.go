@@ -36,6 +36,7 @@ func (s *GameSimulation) ProcessTick() {
 	// 2️⃣ Lógica del juego (solo en fase de batalla)
 	if s.state.GetCurrentPhase() == PhaseBattle {
 		s.Produce()
+		s.UpdateTargets()
 		s.Move()
 		s.Block()
 		s.Attack()
@@ -355,6 +356,40 @@ func (s *GameSimulation) Produce() {
 		}
 	}
 }
+
+// UpdateTargets actualiza el objetivo de unidades móviles hacia el enemigo más cercano
+// dentro de su rango de detección. Si no hay enemigos cercanos, mantiene su objetivo actual
+// (usualmente la base enemiga establecida en el spawn).
+func (s *GameSimulation) UpdateTargets() {
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+
+	for _, unit := range s.state.Units {
+		if !unit.CanMove {
+			continue
+		}
+
+		var nearest *UnitState
+		bestDist := 1_000_000
+		for _, candidate := range s.state.Units {
+			if candidate.PlayerID == unit.PlayerID {
+				continue
+			}
+			dx := abs(unit.X - candidate.X)
+			dy := abs(unit.Y - candidate.Y)
+			dist := dx + dy // Manhattan
+			if dist <= unit.DetectionRange && dist < bestDist {
+				bestDist = dist
+				nearest = candidate
+			}
+		}
+
+		if nearest != nil {
+			unit.TargetX = nearest.X
+			unit.TargetY = nearest.Y
+		}
+	}
+}
 func (s *GameSimulation) Move() {
 	// Step toward target respecting per-unit move interval
 	s.state.mu.Lock()
@@ -411,9 +446,7 @@ func (s *GameSimulation) Move() {
 			unit.Y = newY
 			unit.NextMoveTick = s.state.Tick + unit.MoveIntervalTicks
 		} else {
-			// Both axes blocked; stop at current
-			unit.TargetX = unit.X
-			unit.TargetY = unit.Y
+			// Both axes blocked; keep target to continue pursuing
 		}
 	}
 }

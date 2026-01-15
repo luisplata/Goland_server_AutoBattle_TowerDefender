@@ -38,10 +38,14 @@ type UnitStats struct {
 	CanMove           bool         `json:"canMove"`
 	MoveIntervalTicks int          `json:"moveIntervalTicks"` // Ticks entre movimientos
 
+	// Detection stats
+	DetectionRange int `json:"detectionRange"` // Radio de detección de enemigos (Manhattan)
+
 	// Combat stats
-	AttackDamage        int `json:"attackDamage"`        // Daño por ataque
-	AttackRange         int `json:"attackRange"`         // Rango de ataque (en tiles)
-	AttackIntervalTicks int `json:"attackIntervalTicks"` // Ticks entre ataques
+	AttackDamage        int     `json:"attackDamage"`        // Daño por ataque
+	AttackRange         int     `json:"attackRange"`         // Rango de ataque (en tiles)
+	AttackIntervalTicks int     `json:"attackIntervalTicks"` // Ticks entre ataques
+	AttackDPS           float64 `json:"attackDps"`           // Daño por segundo (convierte a ticks)
 
 	// Generator stats
 	IsGenerator        bool   `json:"isGenerator"`        // Si genera unidades
@@ -61,6 +65,7 @@ func GetUnitStats(unitType string) UnitStats {
 			Category:           CategoryStructure,
 			HP:                 1000, // Alta vida
 			CanMove:            false,
+			DetectionRange:     5,
 			AttackDamage:       0, // No ataca
 			IsGenerator:        true,
 			GeneratedUnitType:  TypeWarrior,
@@ -74,9 +79,11 @@ func GetUnitStats(unitType string) UnitStats {
 			Category:            CategoryStructure,
 			HP:                  500,
 			CanMove:             false,
+			DetectionRange:      6,
 			AttackDamage:        25,
 			AttackRange:         5,  // 5 tiles de rango
 			AttackIntervalTicks: 10, // Ataca cada 2 segundos
+			AttackDPS:           12.5,
 			IsBlocker:           true,
 		},
 
@@ -85,6 +92,7 @@ func GetUnitStats(unitType string) UnitStats {
 			Category:           CategoryStructure,
 			HP:                 300,
 			CanMove:            false,
+			DetectionRange:     5,
 			IsGenerator:        true,
 			GeneratedUnitType:  TypeLandSoldier,
 			GenerationInterval: 25, // Genera cada 5 segundos
@@ -97,6 +105,7 @@ func GetUnitStats(unitType string) UnitStats {
 			Category:           CategoryStructure,
 			HP:                 300,
 			CanMove:            false,
+			DetectionRange:     5,
 			IsGenerator:        true,
 			GeneratedUnitType:  TypeNavalShip,
 			GenerationInterval: 30, // Genera cada 6 segundos
@@ -106,10 +115,11 @@ func GetUnitStats(unitType string) UnitStats {
 
 		// Muralla
 		TypeWall: {
-			Category:  CategoryStructure,
-			HP:        200,
-			CanMove:   false,
-			IsBlocker: true,
+			Category:       CategoryStructure,
+			HP:             200,
+			CanMove:        false,
+			DetectionRange: 4,
+			IsBlocker:      true,
 		},
 
 		// Soldado terrestre
@@ -118,9 +128,11 @@ func GetUnitStats(unitType string) UnitStats {
 			HP:                  100,
 			CanMove:             true,
 			MoveIntervalTicks:   5, // Se mueve cada segundo
+			DetectionRange:      5,
 			AttackDamage:        15,
 			AttackRange:         1, // Cuerpo a cuerpo
 			AttackIntervalTicks: 8, // Ataca cada 1.6 segundos
+			AttackDPS:           9.375,
 		},
 
 		// Barco naval
@@ -129,9 +141,11 @@ func GetUnitStats(unitType string) UnitStats {
 			HP:                  150,
 			CanMove:             true,
 			MoveIntervalTicks:   6, // Más lento que unidades terrestres
+			DetectionRange:      5,
 			AttackDamage:        20,
-			AttackRange:         2,  // Rango medio
+			AttackRange:         3,  // Rango naval
 			AttackIntervalTicks: 10, // Ataca cada 2 segundos
+			AttackDPS:           10,
 		},
 
 		// Legacy warrior
@@ -140,9 +154,11 @@ func GetUnitStats(unitType string) UnitStats {
 			HP:                  100,
 			CanMove:             true,
 			MoveIntervalTicks:   5,
+			DetectionRange:      5,
 			AttackDamage:        10,
 			AttackRange:         1,
 			AttackIntervalTicks: 10,
+			AttackDPS:           5,
 		},
 	}
 

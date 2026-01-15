@@ -22,3 +22,11 @@ func (c *GameClock) ShouldTick() bool {
 	}
 	return false
 }
+
+// TicksPerSecond returns how many ticks occur per second based on the clock's tick duration.
+func (c *GameClock) TicksPerSecond() int {
+	if c.tickDuration <= 0 {
+		return 1
+	}
+	return int(time.Second / c.tickDuration)
+}

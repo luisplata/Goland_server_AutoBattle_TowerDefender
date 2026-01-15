@@ -26,6 +26,8 @@ func NewGame(id int) *Game {
 		Delta:      nil,
 	}
 
+	// Set ticks-per-second into state for DPS-to-ticks calculations
+	state.TicksPerSecond = game.Clock.TicksPerSecond()
 	simulation.BindGame(game)
 	return game
 }
@@ -45,6 +47,8 @@ func NewGameWithConfig(id int, config PhaseConfig) *Game {
 		Delta:      nil,
 	}
 
+	// Set ticks-per-second into state for DPS-to-ticks calculations
+	state.TicksPerSecond = game.Clock.TicksPerSecond()
 	simulation.BindGame(game)
 	return game
 }
