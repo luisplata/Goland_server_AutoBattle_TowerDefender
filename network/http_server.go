@@ -196,6 +196,10 @@ func (s *HttpServer) handleJoin(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
 	gameIDStr := r.URL.Query().Get("gameId")
 	gameID, err := strconv.Atoi(gameIDStr)
 

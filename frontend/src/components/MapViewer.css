@@ -17,6 +17,53 @@
   padding-bottom: 0.5rem;
 }
 
+.map-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.zoom-btn {
+  background: rgba(0, 153, 255, 0.2);
+  border: 1px solid #0099ff;
+  color: #0099ff;
+  padding: 0.4rem 0.8rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.zoom-btn:hover {
+  background: rgba(0, 153, 255, 0.3);
+  transform: scale(1.05);
+}
+
+.zoom-btn:active {
+  transform: scale(0.95);
+}
+
+.zoom-level {
+  color: #0099ff;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.8rem;
+  background: rgba(0, 153, 255, 0.1);
+  border-radius: 4px;
+  min-width: 50px;
+  text-align: center;
+  font-weight: bold;
+}
+
+.map-container {
+  overflow: hidden;
+  border: 1px solid rgba(0, 153, 255, 0.3);
+  border-radius: 4px;
+  background: #0a0a0a;
+  position: relative;
+  user-select: none;
+}
+
 .map-svg {
   background: #0a1e2e;
   border: 1px solid #0099ff;
@@ -24,6 +71,7 @@
   width: 100%;
   aspect-ratio: 1;
   image-rendering: pixelated;
+  cursor: crosshair;
 }
 
 .map-legend {
@@ -63,6 +111,12 @@
 
 .legend-color.unit2 {
   background: #ff00ff;
+}
+
+.selection-info {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  opacity: 0.85;
 }
 
 @media (max-width: 1024px) {

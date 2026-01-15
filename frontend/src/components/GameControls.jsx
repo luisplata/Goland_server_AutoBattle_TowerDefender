@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './GameControls.css'
 
 const CARD_EMOJIS = {
@@ -9,13 +9,16 @@ const CARD_EMOJIS = {
   land_generator: '🏞️',
 }
 
-export default function GameControls({ state, playerId, onCommand }) {
+export default function GameControls({ state, playerId, onCommand, selectedTile, gameMap, onClearSelection, selectedUnitId }) {
   const [selectedCard, setSelectedCard] = useState(null)
   const [spawnX, setSpawnX] = useState('50')
   const [spawnY, setSpawnY] = useState('50')
-  const [selectedUnitId, setSelectedUnitId] = useState('')
   const [moveX, setMoveX] = useState('51')
   const [moveY, setMoveY] = useState('50')
+
+  const currentPhase = state?.currentPhase
+  const isBaseSelectionPhase = currentPhase === 'base_selection'
+  const hasPlacedBase = playerId === state?.humanPlayerId ? (state?.humanBaseId > 0) : (state?.aiBaseId > 0)
 
   // Obtener la mano del jugador actual
   const myPlayer = state?.players?.[playerId]
@@ -28,9 +31,25 @@ export default function GameControls({ state, playerId, onCommand }) {
 
   const isMyTurn = state?.currentPlayerTurn === playerId
 
+  // Sync spawn coordinates with selected tile from map
+  useEffect(() => {
+    if (selectedTile) {
+      setSpawnX(String(selectedTile.x))
+      setSpawnY(String(selectedTile.y))
+    }
+  }, [selectedTile])
+
   const handleSpawnFromCard = () => {
     if (!selectedCard || !spawnX || !spawnY) {
       alert('Selecciona una carta y coordenadas')
+      return
+    }
+
+    const x = parseInt(spawnX)
+    const y = parseInt(spawnY)
+    const walkable = selectedTile ? selectedTile.walkable : (gameMap?.tiles?.[y]?.[x]?.walkable ?? true)
+    if (!walkable) {
+      alert('La posición seleccionada no es válida (agua)')
       return
     }
 
@@ -38,14 +57,19 @@ export default function GameControls({ state, playerId, onCommand }) {
       type: 'spawn_unit',
       data: {
         unitType: selectedCard,
-        x: parseInt(spawnX),
-        y: parseInt(spawnY)
+        x,
+        y
       }
     })
     
     setSelectedCard(null)
     setSpawnX('50')
     setSpawnY('50')
+    
+    // Clear the tile selection after spawning
+    if (onClearSelection) {
+      onClearSelection()
+    }
   }
 
   const handleMoveUnit = () => {
@@ -68,6 +92,65 @@ export default function GameControls({ state, playerId, onCommand }) {
     onCommand({
       type: 'end_turn'
     })
+  }
+
+  const handlePlaceBase = () => {
+    if (!selectedTile) {
+      alert('Click on the map to select a position for your base')
+      return
+    }
+
+    const x = parseInt(spawnX)
+    const y = parseInt(spawnY)
+    
+    if (!selectedTile.walkable) {
+      alert('Cannot place base on water')
+      return
+    }
+
+    onCommand({
+      type: 'place_base',
+      data: { x, y }
+    })
+  }
+
+  // Si estamos en fase de selección de base
+  if (isBaseSelectionPhase) {
+    return (
+      <div className="game-controls">
+        <h2>🏰 Place Your Base</h2>
+        
+        {hasPlacedBase ? (
+          <div className="base-placed-info">
+            <p>✅ Base placed! Waiting for opponent...</p>
+          </div>
+        ) : (
+          <>
+            <div className="base-selection-info">
+              <p>📍 Click on the map to select a position for your main base</p>
+              <p className="help-text">Your base will generate warriors automatically</p>
+            </div>
+
+            {selectedTile && (
+              <div className="selected-position">
+                <p>Selected: ({selectedTile.x}, {selectedTile.y})</p>
+                <p className={selectedTile.walkable ? 'valid' : 'invalid'}>
+                  {selectedTile.walkable ? '✅ Valid position' : '❌ Invalid (water)'}
+                </p>
+              </div>
+            )}
+
+            <button 
+              onClick={handlePlaceBase}
+              className="btn-action btn-place-base"
+              disabled={!selectedTile || !selectedTile.walkable}
+            >
+              🏰 Place Base Here
+            </button>
+          </>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -140,13 +223,20 @@ export default function GameControls({ state, playerId, onCommand }) {
             </div>
           </div>
 
-          <button 
-            onClick={handleSpawnFromCard}
-            className="btn-action btn-spawn"
-            disabled={!isMyTurn}
-          >
-            {CARD_EMOJIS[selectedCard]} Spawn {selectedCard}
-          </button>
+          <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
+            <button 
+              onClick={handleSpawnFromCard}
+              className="btn-action btn-spawn"
+              disabled={!isMyTurn || (selectedTile && !selectedTile.walkable)}
+            >
+              {CARD_EMOJIS[selectedCard]} Spawn {selectedCard}
+            </button>
+            {selectedTile && (
+              <span style={{ opacity: 0.8 }}>
+                {selectedTile.walkable ? '✅ Posición válida' : '❌ Posición inválida (agua)'}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
@@ -157,21 +247,14 @@ export default function GameControls({ state, playerId, onCommand }) {
           <div className="empty-units">No units to move</div>
         ) : (
           <>
-            <div className="form-group">
-              <label>Select Unit:</label>
-              <select 
-                value={selectedUnitId}
-                onChange={(e) => setSelectedUnitId(e.target.value)}
-                disabled={!isMyTurn}
-              >
-                <option value="">-- Choose a unit --</option>
-                {myUnits.map(unit => (
-                  <option key={unit.id} value={unit.id}>
-                    {unit.unitType} (ID: {unit.id}) @ ({unit.x}, {unit.y})
-                  </option>
-                ))}
-              </select>
-            </div>
+            {selectedUnitId ? (
+              <div className="selected-unit-info">
+                <span>Selected: {myUnits.find(u => u.id === selectedUnitId)?.unitType || 'Unknown'} (ID: {selectedUnitId})</span>
+                <span className="help-text">Click unit in "My Units" to change selection</span>
+              </div>
+            ) : (
+              <div className="help-text">👆 Click a unit in "My Units" section above to select it</div>
+            )}
 
             <div className="form-row">
               <div className="form-group">

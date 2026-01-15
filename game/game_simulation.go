@@ -3,6 +3,7 @@ package game
 import (
 	"autobattle-server/command"
 	"log/slog"
+	"math/rand"
 )
 
 type GameSimulation struct {
@@ -48,12 +49,45 @@ func (s *GameSimulation) ProcessTick() {
 
 func (s *GameSimulation) ApplyCommand(cmd command.Command) {
 	// Validar que el jugador puede actuar en la fase actual
-	if cmd.Type != command.CommandReady && !s.state.CanPlayerAct(cmd.PlayerID) {
+	// PlaceBase solo se permite en base_selection, otros comandos en preparation
+	if cmd.Type != command.CommandReady && cmd.Type != command.CommandPlaceBase && !s.state.CanPlayerAct(cmd.PlayerID) {
 		slog.Warn("Command rejected: not in preparation phase", "playerId", cmd.PlayerID, "commandType", cmd.Type, "currentPhase", s.state.GetCurrentPhase())
 		return
 	}
 
 	switch cmd.Type {
+
+	case command.CommandPlaceBase:
+		data, ok := cmd.Data.(map[string]any)
+		if !ok {
+			slog.Warn("Invalid place_base data")
+			return
+		}
+
+		x := int(data["x"].(float64))
+		y := int(data["y"].(float64))
+
+		// Solo permitir colocar base en fase base_selection
+		if s.state.GetCurrentPhase() != PhaseBaseSelection {
+			slog.Warn("Cannot place base outside base_selection phase", "playerId", cmd.PlayerID)
+			return
+		}
+
+		// Verificar que no haya colocado base ya
+		if s.state.HasPlayerPlacedBase(cmd.PlayerID) {
+			slog.Warn("Player already placed base", "playerId", cmd.PlayerID)
+			return
+		}
+
+		// Colocar base
+		base := s.state.SpawnUnit(cmd.PlayerID, TypeMainBase, x, y)
+		if base == nil {
+			slog.Warn("Failed to place base", "playerId", cmd.PlayerID, "x", x, "y", y)
+			return
+		}
+
+		s.state.MarkBasePlaced(cmd.PlayerID, base.ID)
+		slog.Info("Base placed", "playerId", cmd.PlayerID, "baseId", base.ID, "x", x, "y", y)
 
 	case command.CommandSpawnUnit:
 		data, ok := cmd.Data.(map[string]any)
@@ -112,6 +146,22 @@ func (s *GameSimulation) ProcessPhases() {
 	s.state.mu.Unlock()
 
 	switch currentPhase {
+	case PhaseBaseSelection:
+		// Fase de selección de base: esperar a que ambos jugadores coloquen su base
+		if s.state.BothBasesPlaced() {
+			slog.Info("Both bases placed, advancing to TurnStart", "tick", s.state.Tick)
+			s.state.StartFirstTurn() // Iniciar el turno 1
+			s.state.AdvancePhase()
+		} else {
+			// La IA coloca su base SOLO después de que el humano coloque la suya
+			humanPlaced := s.state.HasPlayerPlacedBase(s.state.HumanPlayerID)
+			aiPlaced := s.state.HasPlayerPlacedBase(s.state.AIPlayerID)
+
+			if humanPlaced && !aiPlaced {
+				s.placeAIBase()
+			}
+		}
+
 	case PhaseTurnStart:
 		// Fase de inicio: usa duración configurada
 		if ticksSincePhaseStart >= config.TurnStartDuration {
@@ -146,6 +196,37 @@ func (s *GameSimulation) ProcessPhases() {
 			s.state.AdvancePhase()
 		}
 	}
+}
+
+// placeAIBase coloca la base de la IA en una posición válida automáticamente
+func (s *GameSimulation) placeAIBase() {
+	s.state.mu.Lock()
+	aiID := s.state.AIPlayerID
+	s.state.mu.Unlock()
+
+	// Buscar una posición válida aleatoria en el mapa
+	mapWidth := s.state.Map.Width
+	mapHeight := s.state.Map.Height
+
+	// Intentar hasta 100 posiciones aleatorias
+	for attempts := 0; attempts < 100; attempts++ {
+		x := rand.Intn(mapWidth)
+		y := rand.Intn(mapHeight)
+
+		// Verificar que la posición sea válida
+		if x >= 0 && x < mapWidth && y >= 0 && y < mapHeight {
+			if s.state.canUnitTypeEnter(TypeMainBase, -1, x, y) {
+				base := s.state.SpawnUnit(aiID, TypeMainBase, x, y)
+				if base != nil {
+					s.state.MarkBasePlaced(aiID, base.ID)
+					slog.Info("AI base placed randomly", "aiId", aiID, "baseId", base.ID, "x", x, "y", y)
+					return
+				}
+			}
+		}
+	}
+
+	slog.Warn("AI failed to find valid position for base after 100 attempts")
 }
 
 // ProcessAIPreparation maneja la lógica de la IA en fase de preparación

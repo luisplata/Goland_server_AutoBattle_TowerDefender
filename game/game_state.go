@@ -10,10 +10,11 @@ import (
 type GamePhase string
 
 const (
-	PhaseTurnStart   GamePhase = "turn_start"  // Inicio de turno (efectos gráficos)
-	PhasePreparation GamePhase = "preparation" // Preparación (spawn unidades/edificios)
-	PhaseBattle      GamePhase = "battle"      // Batalla automática
-	PhaseTurnEnd     GamePhase = "turn_end"    // Fin de turno
+	PhaseBaseSelection GamePhase = "base_selection" // Selección de base al inicio
+	PhaseTurnStart     GamePhase = "turn_start"     // Inicio de turno (efectos gráficos)
+	PhasePreparation   GamePhase = "preparation"    // Preparación (spawn unidades/edificios)
+	PhaseBattle        GamePhase = "battle"         // Batalla automática
+	PhaseTurnEnd       GamePhase = "turn_end"       // Fin de turno
 )
 
 // PhaseConfig define la duración de cada fase en ticks
@@ -58,6 +59,10 @@ type GameState struct {
 	// Preparation phase flags
 	HumanPlayerReady bool `json:"humanPlayerReady"` // Si el jugador humano está listo
 	AIPlayerReady    bool `json:"aiPlayerReady"`    // Si la IA está lista
+
+	// Base IDs - para verificar que ambas bases existen
+	HumanBaseID int `json:"humanBaseId"` // ID de la unidad base del jugador humano
+	AIBaseID    int `json:"aiBaseId"`    // ID de la unidad base de la IA
 
 	// Hand tracking
 	HandUpdatedPlayers []int `json:"-"` // IDs de jugadores cuya mano cambió este tick
@@ -127,8 +132,8 @@ func NewGameState() *GameState {
 		nextUnitID:   1,
 		Units:        make(map[int]*UnitState),
 		Map:          NewGameMap(),
-		CurrentPhase: PhaseTurnStart, // Empezar en la fase de inicio de turno
-		TurnNumber:   1,
+		CurrentPhase: PhaseBaseSelection,   // Empezar en fase de selección de base
+		TurnNumber:   0,                    // El turno 1 empieza después de colocar bases
 		Config:       DefaultPhaseConfig(), // Usar configuración por defecto
 	}
 }
@@ -310,6 +315,10 @@ func (g *GameState) AdvancePhase() {
 	defer g.mu.Unlock()
 
 	switch g.CurrentPhase {
+	case PhaseBaseSelection:
+		g.CurrentPhase = PhaseTurnStart
+		// No resetear ready flags aquí, se hace en TurnStart
+
 	case PhaseTurnStart:
 		g.CurrentPhase = PhasePreparation
 		updated := g.drawForAllPlayersLocked()
@@ -359,6 +368,51 @@ func (g *GameState) CanPlayerAct(playerID int) bool {
 
 	// Solo se pueden realizar acciones en la fase de preparación
 	return g.CurrentPhase == PhasePreparation
+}
+
+// HasPlayerPlacedBase verifica si un jugador ya colocó su base
+func (g *GameState) HasPlayerPlacedBase(playerID int) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if playerID == g.HumanPlayerID {
+		return g.HumanBaseID > 0 && g.Units[g.HumanBaseID] != nil
+	} else if playerID == g.AIPlayerID {
+		return g.AIBaseID > 0 && g.Units[g.AIBaseID] != nil
+	}
+	return false
+}
+
+// BothBasesPlaced verifica si ambos jugadores colocaron sus bases
+func (g *GameState) BothBasesPlaced() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	// Verificar que ambas bases existan como unidades en el mapa
+	humanBaseExists := g.HumanBaseID > 0 && g.Units[g.HumanBaseID] != nil
+	aiBaseExists := g.AIBaseID > 0 && g.Units[g.AIBaseID] != nil
+
+	return humanBaseExists && aiBaseExists
+}
+
+// MarkBasePlaced marca que un jugador colocó su base
+func (g *GameState) MarkBasePlaced(playerID int, baseID int) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if playerID == g.HumanPlayerID {
+		g.HumanBaseID = baseID
+	} else if playerID == g.AIPlayerID {
+		g.AIBaseID = baseID
+	}
+}
+
+// StartFirstTurn inicia el turno 1 después de colocar las bases
+func (g *GameState) StartFirstTurn() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.TurnNumber = 1
 }
 
 // GetCurrentPhase retorna la fase actual del juego
@@ -411,9 +465,35 @@ func (g *GameState) SpawnUnit(playerID int, unitType string, x, y int) *UnitStat
 	// Initialize stats based on unit type
 	g.applyUnitStats(unit)
 
-	// Initialize movement target to current position to avoid drifting to (0,0)
-	unit.TargetX = unit.X
-	unit.TargetY = unit.Y
+	// Set default target: enemy base position (if available), otherwise current position
+	if unit.CanMove {
+		// Determine enemy base ID depending on the spawning player's side
+		enemyBaseID := 0
+		if playerID == g.HumanPlayerID {
+			enemyBaseID = g.AIBaseID
+		} else if playerID == g.AIPlayerID {
+			enemyBaseID = g.HumanBaseID
+		}
+
+		if enemyBaseID > 0 {
+			if enemyBase, ok := g.Units[enemyBaseID]; ok {
+				unit.TargetX = enemyBase.X
+				unit.TargetY = enemyBase.Y
+			} else {
+				// Fallback to current position if enemy base not found yet
+				unit.TargetX = unit.X
+				unit.TargetY = unit.Y
+			}
+		} else {
+			// Fallback to current position if enemy base not assigned yet
+			unit.TargetX = unit.X
+			unit.TargetY = unit.Y
+		}
+	} else {
+		// Non-movable units keep target at their own tile
+		unit.TargetX = unit.X
+		unit.TargetY = unit.Y
+	}
 	g.Units[unit.ID] = unit
 	g.nextUnitID++
 

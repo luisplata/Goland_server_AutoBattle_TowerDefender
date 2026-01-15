@@ -12,6 +12,9 @@ const (
 
 // UnitType define los tipos específicos de unidades
 const (
+	// Base principal
+	TypeMainBase = "main_base" // Base principal de cada jugador
+
 	// Estructuras
 	TypeTower          = "tower"           // Torre de defensa
 	TypeLandGenerator  = "land_generator"  // Generador de unidades terrestres
@@ -53,6 +56,19 @@ type UnitStats struct {
 // GetUnitStats retorna las estadísticas para un tipo de unidad
 func GetUnitStats(unitType string) UnitStats {
 	stats := map[string]UnitStats{
+		// Base Principal
+		TypeMainBase: {
+			Category:           CategoryStructure,
+			HP:                 1000, // Alta vida
+			CanMove:            false,
+			AttackDamage:       0, // No ataca
+			IsGenerator:        true,
+			GeneratedUnitType:  TypeWarrior,
+			GenerationInterval: 20, // Genera cada 4 segundos
+			MaxUnitsGenerated:  -1, // Infinitas unidades
+			IsBlocker:          true,
+		},
+
 		// Torres
 		TypeTower: {
 			Category:            CategoryStructure,

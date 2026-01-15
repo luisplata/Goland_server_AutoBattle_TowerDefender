@@ -4,6 +4,7 @@ type CommandType string
 
 const (
 	CommandDummy     CommandType = "dummy"
+	CommandPlaceBase CommandType = "place_base" // Colocar base principal
 	CommandSpawnUnit CommandType = "spawn_unit"
 	CommandUpgrade   CommandType = "upgrade"
 	CommandMoveUnit  CommandType = "move_unit"
