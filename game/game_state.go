@@ -189,6 +189,14 @@ func (g *GameState) AddPlayer() *Player {
 	player.Deck = defaultDeck()
 	shuffleCards(player.Deck)
 	player.DeckCount = len(player.Deck)
+
+	// Dibujar mano inicial (3 cartas)
+	for i := 0; i < 3 && len(player.Deck) > 0; i++ {
+		if card, ok := g.drawCardLocked(player); ok {
+			player.Hand = append(player.Hand, card)
+		}
+	}
+
 	g.Players[player.ID] = player
 
 	// Si es el primer jugador (humano), crear también el jugador AI
@@ -201,6 +209,17 @@ func (g *GameState) AddPlayer() *Player {
 			ID:   g.nextPlayerID,
 			IsAI: true,
 		}
+		aiPlayer.Deck = defaultDeck()
+		shuffleCards(aiPlayer.Deck)
+		aiPlayer.DeckCount = len(aiPlayer.Deck)
+
+		// Dibujar mano inicial para IA (3 cartas)
+		for i := 0; i < 3 && len(aiPlayer.Deck) > 0; i++ {
+			if card, ok := g.drawCardLocked(aiPlayer); ok {
+				aiPlayer.Hand = append(aiPlayer.Hand, card)
+			}
+		}
+
 		g.Players[aiPlayer.ID] = aiPlayer
 		g.AIPlayerID = aiPlayer.ID
 	}

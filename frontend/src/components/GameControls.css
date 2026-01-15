@@ -80,6 +80,87 @@
   font-size: 1rem;
 }
 
+/* HAND SECTION */
+.hand-section {
+  background: rgba(0, 100, 255, 0.1) !important;
+  border: 2px solid #0099ff !important;
+}
+
+.hand-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+  gap: 0.8rem;
+  min-height: 100px;
+}
+
+.empty-hand {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: #888;
+  padding: 1rem;
+  font-style: italic;
+}
+
+.card {
+  background: linear-gradient(135deg, rgba(0, 153, 255, 0.3), rgba(0, 200, 255, 0.1));
+  border: 2px solid #0099ff;
+  border-radius: 8px;
+  padding: 0.8rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.card:hover {
+  background: linear-gradient(135deg, rgba(0, 153, 255, 0.5), rgba(0, 200, 255, 0.2));
+  transform: translateY(-4px);
+  box-shadow: 0 6px 16px rgba(0, 153, 255, 0.3);
+}
+
+.card.selected {
+  background: linear-gradient(135deg, rgba(0, 255, 136, 0.4), rgba(0, 255, 136, 0.2));
+  border-color: #00ff88;
+  box-shadow: 0 0 16px #00ff88;
+  transform: scale(1.05);
+}
+
+.card-emoji {
+  font-size: 1.8rem;
+}
+
+.card-name {
+  font-size: 0.7rem;
+  color: #0099ff;
+  font-weight: bold;
+  word-break: break-word;
+}
+
+.card.selected .card-name {
+  color: #00ff88;
+}
+
+/* SPAWN SECTION */
+.spawn-section {
+  background: rgba(0, 255, 136, 0.1) !important;
+  border: 2px solid #00ff88 !important;
+}
+
+.btn-spawn {
+  background: #00ff88 !important;
+  color: #000 !important;
+}
+
+.empty-units {
+  padding: 1rem;
+  text-align: center;
+  color: #888;
+  font-style: italic;
+}
+
 .form-group {
   margin-bottom: 1rem;
   display: flex;

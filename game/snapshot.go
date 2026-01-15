@@ -5,6 +5,7 @@ type Snapshot struct {
 	Tick              int                `json:"tick"`
 	Units             map[int]*UnitState `json:"units"`
 	Players           map[int]*Player    `json:"players"`
+	Map               *GameMap           `json:"map"`
 	CurrentPhase      GamePhase          `json:"currentPhase"`
 	TurnNumber        int                `json:"turnNumber"`
 	HumanPlayerID     int                `json:"humanPlayerId"`
@@ -57,6 +58,7 @@ func BuildSnapshot(state *GameState) Snapshot {
 		Tick:              state.Tick,
 		Units:             unitsCopy,
 		Players:           playersCopy,
+		Map:               state.Map,
 		CurrentPhase:      state.CurrentPhase,
 		TurnNumber:        state.TurnNumber,
 		HumanPlayerID:     state.HumanPlayerID,

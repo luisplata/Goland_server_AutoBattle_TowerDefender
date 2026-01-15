@@ -6,6 +6,7 @@ type UpdateMessage struct {
 	Tick              int                `json:"tick"`
 	Units             map[int]*UnitState `json:"units,omitempty"`
 	Players           map[int]*Player    `json:"players,omitempty"`
+	Map               *GameMap           `json:"map,omitempty"`
 	Spawned           []*UnitState       `json:"spawned,omitempty"`
 	Moved             []UnitMove         `json:"moved,omitempty"`
 	Dead              []int              `json:"dead,omitempty"`
@@ -36,6 +37,7 @@ func SnapshotToUpdate(s Snapshot) UpdateMessage {
 		Tick:              s.Tick,
 		Units:             s.Units,
 		Players:           s.Players,
+		Map:               s.Map,
 		CurrentPhase:      s.CurrentPhase,
 		TurnNumber:        s.TurnNumber,
 		HumanPlayerID:     s.HumanPlayerID,
