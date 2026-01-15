@@ -49,6 +49,28 @@ export default function MapViewer({ gameMap, units, selectedTile, onSelectTile, 
   const [startPan, setStartPan] = useState({ x: 0, y: 0 })
   const mapContainerRef = useRef(null)
   
+  const handleZoomAtPoint = (delta, mouseX, mouseY, containerRect) => {
+    setZoom(oldZoom => {
+      const newZoom = Math.max(0.5, Math.min(5, oldZoom + delta))
+      
+      if (oldZoom === newZoom) return oldZoom // No change in zoom
+      
+      // Mouse position relative to container
+      const mouseXInContainer = mouseX - containerRect.left
+      const mouseYInContainer = mouseY - containerRect.top
+      
+      // Calculate the new pan to keep the point under the mouse stationary
+      const scale = newZoom / oldZoom
+      
+      setPan(prevPan => ({
+        x: mouseXInContainer - (mouseXInContainer - prevPan.x) * scale,
+        y: mouseYInContainer - (mouseYInContainer - prevPan.y) * scale
+      }))
+      
+      return newZoom
+    })
+  }
+  
   // Agregar wheel listener con { passive: false } para poder usar preventDefault
   useEffect(() => {
     const container = mapContainerRef.current
@@ -69,7 +91,7 @@ export default function MapViewer({ gameMap, units, selectedTile, onSelectTile, 
     return () => {
       container.removeEventListener('wheel', wheelHandler)
     }
-  }, [disableZoom, zoom])
+  }, [disableZoom])
   
   if (!gameMap || !gameMap.tiles) {
     return <div className="map-viewer">Loading map...</div>
@@ -78,26 +100,6 @@ export default function MapViewer({ gameMap, units, selectedTile, onSelectTile, 
   const tileSize = 3 // pixels per tile
   const mapWidth = gameMap.width * tileSize
   const mapHeight = gameMap.height * tileSize
-
-  const handleZoomAtPoint = (delta, mouseX, mouseY, containerRect) => {
-    const oldZoom = zoom
-    const newZoom = Math.max(0.5, Math.min(5, oldZoom + delta))
-    
-    if (oldZoom === newZoom) return // No change in zoom
-    
-    // Mouse position relative to container
-    const mouseXInContainer = mouseX - containerRect.left
-    const mouseYInContainer = mouseY - containerRect.top
-    
-    // Calculate the new pan to keep the point under the mouse stationary
-    const scale = newZoom / oldZoom
-    
-    setZoom(newZoom)
-    setPan(prevPan => ({
-      x: mouseXInContainer - (mouseXInContainer - prevPan.x) * scale,
-      y: mouseYInContainer - (mouseYInContainer - prevPan.y) * scale
-    }))
-  }
 
   const handleMouseDown = (e) => {
     if (e.button === 1 || e.shiftKey) { // Middle mouse or Shift+Click for pan

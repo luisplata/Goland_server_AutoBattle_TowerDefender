@@ -330,9 +330,8 @@ func (g *GameState) AdvancePhase() {
 		// No resetear ready flags aquí, se hace en TurnStart
 
 	case PhaseTurnStart:
+		// Ya en turno, solo pasar a preparación después de la animación breve
 		g.CurrentPhase = PhasePreparation
-		updated := g.drawForAllPlayersLocked()
-		g.HandUpdatedPlayers = updated
 		g.HumanPlayerReady = false
 		g.AIPlayerReady = false
 
@@ -343,6 +342,9 @@ func (g *GameState) AdvancePhase() {
 		g.CurrentPhase = PhaseTurnEnd
 
 	case PhaseTurnEnd:
+		// Nuevo turno: robar carta al entrar en turn_start
+		updated := g.drawForAllPlayersLocked()
+		g.HandUpdatedPlayers = updated
 		g.CurrentPhase = PhaseTurnStart
 		g.TurnNumber++
 	}

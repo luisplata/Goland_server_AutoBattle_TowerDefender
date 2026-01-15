@@ -360,8 +360,7 @@ func (s *GameSimulation) Produce() {
 }
 
 // UpdateTargets actualiza el objetivo de unidades móviles hacia el enemigo más cercano
-// dentro de su rango de detección. Si no hay enemigos cercanos, mantiene su objetivo actual
-// (usualmente la base enemiga establecida en el spawn).
+// dentro de su rango de detección. Si no hay enemigos cercanos, establece la base enemiga como objetivo.
 func (s *GameSimulation) UpdateTargets() {
 	s.state.mu.Lock()
 	defer s.state.mu.Unlock()
@@ -377,6 +376,9 @@ func (s *GameSimulation) UpdateTargets() {
 			if candidate.PlayerID == unit.PlayerID {
 				continue
 			}
+			if candidate.HP <= 0 {
+				continue // Skip dead units
+			}
 			dx := abs(unit.X - candidate.X)
 			dy := abs(unit.Y - candidate.Y)
 			dist := dx + dy // Manhattan
@@ -389,6 +391,22 @@ func (s *GameSimulation) UpdateTargets() {
 		if nearest != nil {
 			unit.TargetX = nearest.X
 			unit.TargetY = nearest.Y
+		} else {
+			// No enemy in detection range - fallback to enemy base
+			enemyBaseID := 0
+			switch unit.PlayerID {
+			case s.state.HumanPlayerID:
+				enemyBaseID = s.state.AIBaseID
+			case s.state.AIPlayerID:
+				enemyBaseID = s.state.HumanBaseID
+			}
+
+			if enemyBaseID > 0 {
+				if enemyBase, ok := s.state.Units[enemyBaseID]; ok && enemyBase.HP > 0 {
+					unit.TargetX = enemyBase.X
+					unit.TargetY = enemyBase.Y
+				}
+			}
 		}
 	}
 }
