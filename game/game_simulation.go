@@ -397,12 +397,18 @@ func (s *GameSimulation) Move() {
 
 	for _, unit := range s.state.Units {
 		if !unit.CanMove {
+			// Non-movable units remain idle unless they attack
+			unit.Status = "idle"
 			continue
 		}
 		if unit.X == unit.TargetX && unit.Y == unit.TargetY {
+			// Reached destination; idle unless retargeted later
+			unit.Status = "idle"
 			continue
 		}
 		if s.state.Tick < unit.NextMoveTick {
+			// Waiting for next move tick
+			unit.Status = "waiting"
 			continue
 		}
 
@@ -425,6 +431,7 @@ func (s *GameSimulation) Move() {
 				unit.X = newX
 				unit.Y = newY
 				unit.NextMoveTick = s.state.Tick + unit.MoveIntervalTicks
+				unit.Status = "moving"
 				continue
 			}
 			// fallback to Y axis
@@ -438,6 +445,7 @@ func (s *GameSimulation) Move() {
 			newY = unit.Y - 1
 		} else if !stepTried {
 			// If X was aligned and Y already equal, nothing to do
+			unit.Status = "idle"
 			continue
 		}
 
@@ -445,8 +453,10 @@ func (s *GameSimulation) Move() {
 			unit.X = newX
 			unit.Y = newY
 			unit.NextMoveTick = s.state.Tick + unit.MoveIntervalTicks
+			unit.Status = "moving"
 		} else {
 			// Both axes blocked; keep target to continue pursuing
+			unit.Status = "blocked"
 		}
 	}
 }
@@ -493,6 +503,7 @@ func (s *GameSimulation) Attack() {
 		}
 
 		target.HP -= attacker.AttackDamage
+		attacker.Status = "attacking"
 		slog.Info("Attack", "tick", currentTick, "attackerId", attacker.ID, "targetId", target.ID, "damage", attacker.AttackDamage, "targetHP", target.HP)
 	}
 

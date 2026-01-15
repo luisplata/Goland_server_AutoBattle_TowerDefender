@@ -36,6 +36,7 @@ func BuildSnapshot(state *GameState) Snapshot {
 			AttackDamage:   unit.AttackDamage,
 			AttackRange:    unit.AttackRange,
 			DetectionRange: unit.DetectionRange,
+			Status:         unit.Status,
 		}
 	}
 
