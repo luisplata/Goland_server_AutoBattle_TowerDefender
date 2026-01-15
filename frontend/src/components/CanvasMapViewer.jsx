@@ -1,0 +1,371 @@
+import { useState, useRef, useEffect, useCallback } from 'react'
+import './MapViewer.css'
+
+const TERRAIN_COLORS = {
+  0: '#4a7c3c', // Grass
+  1: '#6b8e23', // Path
+  2: '#1e5aa0', // Water
+}
+
+const COLOR_CONFIG = {
+  PLAYER_1_HUE: 200,
+  PLAYER_2_HUE: 0,
+  SATURATION: 100,
+  LIGHTNESS_MIN: 15,
+  LIGHTNESS_MAX: 85,
+}
+
+const UNIT_TYPE_INTENSITIES = {
+  main_base: 0.0,
+  tower: 0.14,
+  wall: 0.28,
+  land_generator: 0.42,
+  naval_generator: 0.5,
+  warrior: 0.64,
+  land_soldier: 0.78,
+  naval_ship: 1.0,
+}
+
+const getUnitColorIntensity = (unitType) => UNIT_TYPE_INTENSITIES[unitType] ?? 0.5
+
+const getUnitColor = (playerId, unitType) => {
+  const hue = playerId === 1 ? COLOR_CONFIG.PLAYER_1_HUE : COLOR_CONFIG.PLAYER_2_HUE
+  const saturation = COLOR_CONFIG.SATURATION
+  const intensity = getUnitColorIntensity(unitType)
+  const lightness = COLOR_CONFIG.LIGHTNESS_MIN + intensity * (COLOR_CONFIG.LIGHTNESS_MAX - COLOR_CONFIG.LIGHTNESS_MIN)
+  return `hsl(${hue}, ${saturation}%, ${lightness}%)`
+}
+
+export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelectTile, disableZoom = false, playerId, selectedCard }) {
+  const [zoom, setZoom] = useState(3)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [isPanning, setIsPanning] = useState(false)
+  const [startPan, setStartPan] = useState({ x: 0, y: 0 })
+  const containerRef = useRef(null)
+  const canvasRef = useRef(null)
+
+  const tileSize = 3 // Base tile size in world units; zoom starts at 3 for perceived 100%
+
+  // Controlled area calculation (same logic as SVG component)
+  const controlledArea = (() => {
+    if (!playerId || !units || !selectedCard) return new Set()
+    const controlled = new Set()
+    const myUnits = Object.values(units).filter(u => u.playerId === playerId && u.hp > 0)
+
+    for (const unit of myUnits) {
+      if (!unit.buildRange || unit.buildRange <= 0) continue
+      for (let dy = -unit.buildRange; dy <= unit.buildRange; dy++) {
+        for (let dx = -unit.buildRange; dx <= unit.buildRange; dx++) {
+          const manhattan = Math.abs(dx) + Math.abs(dy)
+          if (manhattan <= unit.buildRange) {
+            const tx = unit.x + dx
+            const ty = unit.y + dy
+            if (tx >= 0 && tx < gameMap.width && ty >= 0 && ty < gameMap.height) {
+              controlled.add(`${tx},${ty}`)
+            }
+          }
+        }
+      }
+    }
+    return controlled
+  })()
+
+  const isStructureCard = selectedCard && ['tower', 'wall', 'land_generator', 'naval_generator'].includes(selectedCard)
+
+  // Zoom with wheel at mouse position
+  const handleWheel = useCallback((e) => {
+    e.preventDefault()
+    if (disableZoom) return
+    const container = containerRef.current
+    if (!container) return
+
+    const rect = container.getBoundingClientRect()
+    const delta = e.deltaY > 0 ? -0.2 : 0.2
+    const mouseX = e.clientX - rect.left
+    const mouseY = e.clientY - rect.top
+
+    setZoom(oldZoom => {
+      const newZoom = Math.max(0.5, Math.min(10, oldZoom + delta))
+      if (oldZoom === newZoom) return oldZoom
+      setPan(prevPan => {
+        const ratio = newZoom / oldZoom
+        return {
+          x: mouseX - (mouseX - prevPan.x) * ratio,
+          y: mouseY - (mouseY - prevPan.y) * ratio,
+        }
+      })
+      return newZoom
+    })
+  }, [disableZoom])
+
+  // Zoom via buttons at center
+  const handleZoomAtCenter = useCallback((delta) => {
+    if (disableZoom) return
+    const container = containerRef.current
+    if (!container) return
+    const rect = container.getBoundingClientRect()
+    const cx = rect.width / 2
+    const cy = rect.height / 2
+    setZoom(oldZoom => {
+      const newZoom = Math.max(0.5, Math.min(10, oldZoom + delta))
+      if (oldZoom === newZoom) return oldZoom
+      setPan(prevPan => {
+        const ratio = newZoom / oldZoom
+        return {
+          x: cx - (cx - prevPan.x) * ratio,
+          y: cy - (cy - prevPan.y) * ratio,
+        }
+      })
+      return newZoom
+    })
+  }, [disableZoom])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    container.addEventListener('wheel', handleWheel, { passive: false })
+    return () => {
+      container.removeEventListener('wheel', handleWheel)
+    }
+  }, [handleWheel])
+
+  // Mouse handlers for pan and click
+  const handleMouseDown = (e) => {
+    if (e.button === 1 || e.shiftKey) {
+      setIsPanning(true)
+      setStartPan({ x: e.clientX - pan.x, y: e.clientY - pan.y })
+      e.preventDefault()
+    }
+  }
+
+  const handleMouseMove = (e) => {
+    if (isPanning) {
+      setPan({ x: e.clientX - startPan.x, y: e.clientY - startPan.y })
+    }
+  }
+
+  const handleMouseUp = () => setIsPanning(false)
+
+  const resetView = () => {
+    setZoom(3)
+    setPan({ x: 0, y: 0 })
+  }
+
+  const pickTileFromEvent = (e) => {
+    const canvas = canvasRef.current
+    const container = containerRef.current
+    if (!canvas || !container) return null
+    const rect = container.getBoundingClientRect()
+    const worldX = (e.clientX - rect.left - pan.x) / zoom
+    const worldY = (e.clientY - rect.top - pan.y) / zoom
+    const x = Math.floor(worldX / tileSize)
+    const y = Math.floor(worldY / tileSize)
+    if (x < 0 || y < 0 || x >= gameMap.width || y >= gameMap.height) return null
+    const tile = gameMap.tiles[y][x]
+    return { x, y, walkable: tile.walkable }
+  }
+
+  const handleClick = (e) => {
+    if (isPanning || e.button !== 0) return
+    const tile = pickTileFromEvent(e)
+    if (tile && onSelectTile) onSelectTile(tile)
+  }
+
+  // Draw everything
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas || !gameMap) return
+    const ctx = canvas.getContext('2d')
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    // World transform: zoom + pan
+    ctx.setTransform(zoom, 0, 0, zoom, pan.x, pan.y)
+
+    // Draw tiles
+    for (let y = 0; y < gameMap.height; y++) {
+      const row = gameMap.tiles[y]
+      for (let x = 0; x < gameMap.width; x++) {
+        const tile = row[x]
+        ctx.fillStyle = TERRAIN_COLORS[tile.terrainId] || '#666'
+        ctx.globalAlpha = tile.walkable ? 1 : 0.6
+        ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize)
+      }
+    }
+    ctx.globalAlpha = 1
+
+    // Controlled area overlay
+    if (selectedCard && controlledArea.size > 0) {
+      ctx.lineWidth = 0.04 * tileSize
+      for (const key of controlledArea) {
+        const [tx, ty] = key.split(',').map(Number)
+        const isControlled = true
+        const isValidForStructure = !isStructureCard || isControlled
+        const strokeColor = isValidForStructure ? '#00ff88' : '#ff4444'
+        const fillAlpha = isStructureCard && !isControlled ? 0.3 : 0
+        if (fillAlpha > 0) {
+          ctx.fillStyle = `rgba(0,255,136,${fillAlpha})`
+          ctx.fillRect(tx * tileSize, ty * tileSize, tileSize, tileSize)
+        }
+        ctx.strokeStyle = strokeColor
+        ctx.strokeRect(tx * tileSize, ty * tileSize, tileSize, tileSize)
+      }
+    }
+
+    // Selection highlight
+    if (selectedTile) {
+      ctx.strokeStyle = selectedTile.walkable ? '#00ff88' : '#ff4444'
+      ctx.lineWidth = 0.1 * tileSize
+      ctx.strokeRect(selectedTile.x * tileSize, selectedTile.y * tileSize, tileSize, tileSize)
+    }
+
+    // Units
+    if (units) {
+      Object.values(units).forEach(unit => {
+        const color = getUnitColor(unit.playerId, unit.unitType)
+        const cx = (unit.x + 0.5) * tileSize
+        const cy = (unit.y + 0.5) * tileSize
+        const r = 0.4 * tileSize
+        const hpPercent = unit.maxHp ? unit.hp / unit.maxHp : 1
+
+        // Range indicators
+        if (unit.attackDamage > 0 && unit.attackRange) {
+          ctx.strokeStyle = color
+          ctx.lineWidth = 0.02 * tileSize
+          ctx.globalAlpha = 0.2
+          ctx.beginPath()
+          ctx.arc(cx, cy, unit.attackRange * tileSize, 0, Math.PI * 2)
+          ctx.stroke()
+          ctx.globalAlpha = 1
+        }
+
+        if (unit.buildRange > 0) {
+          ctx.strokeStyle = '#00ff88'
+          ctx.lineWidth = 0.03 * tileSize
+          ctx.setLineDash([0.2 * tileSize, 0.2 * tileSize])
+          ctx.globalAlpha = 0.15
+          ctx.beginPath()
+          ctx.arc(cx, cy, unit.buildRange * tileSize, 0, Math.PI * 2)
+          ctx.stroke()
+          ctx.setLineDash([])
+          ctx.globalAlpha = 1
+        }
+
+        // Unit body
+        ctx.fillStyle = color
+        ctx.strokeStyle = '#fff'
+        ctx.lineWidth = 0.05 * tileSize
+        ctx.beginPath()
+        ctx.arc(cx, cy, r, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+
+        // HP bar
+        const barW = 0.6 * tileSize
+        const barH = 0.08 * tileSize
+        ctx.fillStyle = '#1a1a1a'
+        ctx.fillRect(cx - barW / 2, cy - 0.7 * tileSize, barW, barH)
+        ctx.fillStyle = hpPercent > 0.5 ? '#4CAF50' : hpPercent > 0.25 ? '#FF9800' : '#F44336'
+        ctx.fillRect(cx - barW / 2, cy - 0.7 * tileSize, barW * hpPercent, barH)
+      })
+    }
+  }, [gameMap, units, controlledArea, isStructureCard, selectedTile, pan, zoom, tileSize])
+
+  // Resize canvas to container size
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const container = containerRef.current
+    if (!canvas || !container) return
+
+    const resize = () => {
+      const { clientWidth, clientHeight } = container
+      canvas.width = clientWidth
+      canvas.height = clientHeight
+      draw()
+    }
+
+    resize()
+    const observer = new ResizeObserver(resize)
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [draw])
+
+
+  // Redraw on changes
+  useEffect(() => {
+    draw()
+  }, [draw])
+
+  if (!gameMap || !gameMap.tiles) {
+    return <div className="map-viewer">Loading map...</div>
+  }
+
+  return (
+    <div className="map-viewer">
+      <h3>🗺️ Game Map (Canvas)</h3>
+
+      <div className="map-controls">
+        <button onClick={() => handleZoomAtCenter(0.2)} className="zoom-btn" title="Zoom In" disabled={disableZoom}>🔍 +</button>
+        <button onClick={() => handleZoomAtCenter(-0.2)} className="zoom-btn" title="Zoom Out" disabled={disableZoom}>🔍 -</button>
+        <button onClick={resetView} className="zoom-btn" title="Reset View" disabled={disableZoom}>🎯</button>
+        <span className="zoom-level">{((zoom / 3) * 100).toFixed(0)}%</span>
+      </div>
+
+      <div
+        className="map-container"
+        ref={containerRef}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onClick={handleClick}
+        onContextMenu={(e) => e.preventDefault()}
+        style={{ cursor: isPanning ? 'grabbing' : 'crosshair' }}
+      >
+        <canvas ref={canvasRef} className="map-canvas" />
+      </div>
+
+      <div className="map-legend">
+        <div className="legend-item">
+          <div className="legend-color grass"></div>
+          <span>Walkable</span>
+        </div>
+        <div className="legend-item">
+          <div className="legend-color water"></div>
+          <span>Water (Invalid)</span>
+        </div>
+        <div style={{ marginTop: '0.5rem', borderTop: '1px solid #666', paddingTop: '0.5rem' }}>
+          <div style={{ fontSize: '0.85rem', marginBottom: '0.3rem', fontWeight: 'bold' }}>Unit Colors:</div>
+          <div className="legend-item" style={{ fontSize: '0.8rem' }}>
+            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: getUnitColor(1, 'main_base'), border: '1px solid white' }}></div>
+            <span>Your Base</span>
+          </div>
+          <div className="legend-item" style={{ fontSize: '0.8rem' }}>
+            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: getUnitColor(1, 'warrior'), border: '1px solid white' }}></div>
+            <span>Your Warrior</span>
+          </div>
+          <div className="legend-item" style={{ fontSize: '0.8rem' }}>
+            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: getUnitColor(2, 'main_base'), border: '1px solid white' }}></div>
+            <span>Enemy Base</span>
+          </div>
+          <div className="legend-item" style={{ fontSize: '0.8rem' }}>
+            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: getUnitColor(2, 'warrior'), border: '1px solid white' }}></div>
+            <span>Enemy Warrior</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="selection-info">
+        {selectedTile ? (
+          <span>
+            Selected: ({selectedTile.x}, {selectedTile.y}) — {selectedTile.walkable ? 'Walkable ✅' : 'Water ❌'}
+          </span>
+        ) : selectedCard && controlledArea.size > 0 ? (
+          <span>Controlled area shown in green for structures</span>
+        ) : (
+          <span>Click a tile to select it</span>
+        )}
+      </div>
+    </div>
+  )
+}

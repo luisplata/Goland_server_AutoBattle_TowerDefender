@@ -490,6 +490,8 @@ func (g *GameState) DrainHandUpdates() []int {
 }
 
 // SpawnUnit crea una nueva unidad en el juego
+// Requiere que la posición esté dentro del área controlada del jugador
+// (excepto cuando aún no colocó base, donde se permite para la base inicial).
 func (g *GameState) SpawnUnit(playerID int, unitType string, x, y int) *UnitState {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -499,9 +501,8 @@ func (g *GameState) SpawnUnit(playerID int, unitType string, x, y int) *UnitStat
 		return nil
 	}
 
-	// Validar que esté dentro del área controlada por el jugador (solo estructuras)
-	stats := GetUnitStats(unitType)
-	if stats.Category == CategoryStructure && !g.isWithinControlledArea(playerID, x, y) {
+	// Validar que esté dentro del área controlada por el jugador (todas las unidades)
+	if !g.isWithinControlledArea(playerID, x, y) {
 		return nil
 	}
 
@@ -756,13 +757,10 @@ func (g *GameState) isTileAllowedForUnit(unit *UnitState, x, y int) bool {
 }
 
 // findSpawnPosition intenta encontrar una posición válida para un unitType.
-// Para estructuras, valida que esté dentro del área controlada por el jugador.
+// Valida terreno, ocupación y área controlada (todas las unidades).
 func (g *GameState) findSpawnPosition(unitType string, playerID int, attempts int) (int, int, bool) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-
-	stats := GetUnitStats(unitType)
-	isStructure := stats.Category == CategoryStructure
 
 	for i := 0; i < attempts; i++ {
 		x := rand.Intn(g.Map.Width)
@@ -773,8 +771,8 @@ func (g *GameState) findSpawnPosition(unitType string, playerID int, attempts in
 			continue
 		}
 
-		// Si es estructura, validar área controlada
-		if isStructure && !g.isWithinControlledArea(playerID, x, y) {
+		// Validar área controlada para todos los spawns (excepto base inicial, manejado en isWithinControlledArea)
+		if !g.isWithinControlledArea(playerID, x, y) {
 			continue
 		}
 

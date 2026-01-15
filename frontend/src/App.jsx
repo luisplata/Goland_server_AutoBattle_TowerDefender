@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import GameBoard from './components/GameBoard'
 import GameControls from './components/GameControls'
-import MapViewer from './components/MapViewer'
+import CanvasMapViewer from './components/CanvasMapViewer'
 import './App.css'
 
 function App() {
@@ -239,7 +239,7 @@ function App() {
           </div>
         ) : (
           <>
-            <MapViewer 
+            <CanvasMapViewer 
               gameMap={gameState?.map} 
               units={gameState?.units} 
               selectedTile={selectedTile}
