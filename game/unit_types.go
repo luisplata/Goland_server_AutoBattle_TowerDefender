@@ -81,7 +81,7 @@ func GetUnitStats(unitType string) UnitStats {
 			CanMove:             false,
 			DetectionRange:      6,
 			AttackDamage:        25,
-			AttackRange:         5,  // 5 tiles de rango
+			AttackRange:         25, // 5 tiles de rango
 			AttackIntervalTicks: 10, // Ataca cada 2 segundos
 			AttackDPS:           12.5,
 			IsBlocker:           true,
@@ -128,9 +128,9 @@ func GetUnitStats(unitType string) UnitStats {
 			HP:                  100,
 			CanMove:             true,
 			MoveIntervalTicks:   5, // Se mueve cada segundo
-			DetectionRange:      5,
+			DetectionRange:      10,
 			AttackDamage:        15,
-			AttackRange:         1, // Cuerpo a cuerpo
+			AttackRange:         2, // Cuerpo a cuerpo
 			AttackIntervalTicks: 8, // Ataca cada 1.6 segundos
 			AttackDPS:           9.375,
 		},
@@ -141,9 +141,9 @@ func GetUnitStats(unitType string) UnitStats {
 			HP:                  150,
 			CanMove:             true,
 			MoveIntervalTicks:   6, // Más lento que unidades terrestres
-			DetectionRange:      5,
+			DetectionRange:      50,
 			AttackDamage:        20,
-			AttackRange:         3,  // Rango naval
+			AttackRange:         15, // Rango naval
 			AttackIntervalTicks: 10, // Ataca cada 2 segundos
 			AttackDPS:           10,
 		},
@@ -154,9 +154,9 @@ func GetUnitStats(unitType string) UnitStats {
 			HP:                  100,
 			CanMove:             true,
 			MoveIntervalTicks:   5,
-			DetectionRange:      5,
+			DetectionRange:      50,
 			AttackDamage:        10,
-			AttackRange:         1,
+			AttackRange:         2,
 			AttackIntervalTicks: 10,
 			AttackDPS:           5,
 		},

@@ -132,16 +132,39 @@ export default function GameBoard({ state, playerId, selectedUnitId, onSelectUni
     )
   }
 
+  const getStatusEmoji = (status) => {
+    const statusMap = {
+      'idle': '⏸️',
+      'moving': '🚶',
+      'waiting': '⏳',
+      'blocked': '🚫',
+      'attacking': '⚡',
+    }
+    return statusMap[status] || '❓'
+  }
+
+  const getStatusColor = (status) => {
+    const colorMap = {
+      'idle': '#9E9E9E',
+      'moving': '#2196F3',
+      'waiting': '#FF9800',
+      'blocked': '#F44336',
+      'attacking': '#FF1744',
+    }
+    return colorMap[status] || '#666'
+  }
+
   const renderUnitCard = (unit, isMine) => {
     const hpPercent = unit.maxHp ? (unit.hp / unit.maxHp) * 100 : 100
     const isAlive = unit.hp > 0
     const isSelected = selectedUnitId === unit.id
     const unitColor = getUnitColor(unit.playerId, unit.unitType)
+    const statusColor = getStatusColor(unit.status)
     
     return (
       <div 
         key={unit.id} 
-        className={`unit-card ${!isAlive ? 'dead' : ''} ${isSelected ? 'selected' : ''} ${isMine ? 'clickable' : ''}`}
+        className={`unit-card ${!isAlive ? 'dead' : ''} ${isSelected ? 'selected' : ''} ${isMine ? 'clickable' : ''} status-${unit.status}`}
         onClick={() => isMine && onSelectUnit && onSelectUnit(unit.id)}
         style={{
           borderLeftColor: unitColor,
@@ -153,6 +176,11 @@ export default function GameBoard({ state, playerId, selectedUnitId, onSelectUni
           <span className="unit-name">{unit.unitType}</span>
           {isSelected && <span className="selected-badge">✓</span>}
         </div>
+
+        <div className="unit-status-bar" style={{backgroundColor: statusColor}}>
+          <span className="status-emoji">{getStatusEmoji(unit.status)}</span>
+          <span className="status-text">{unit.status}</span>
+        </div>
         
         <div className="hp-bar-container">
           <div className="hp-bar" style={{width: `${hpPercent}%`, backgroundColor: hpPercent > 50 ? '#4CAF50' : hpPercent > 25 ? '#FF9800' : '#F44336'}}></div>
@@ -163,6 +191,7 @@ export default function GameBoard({ state, playerId, selectedUnitId, onSelectUni
           <span>📍 ({unit.x}, {unit.y})</span>
           {unit.attackDamage > 0 && <span>⚔️ {unit.attackDamage}</span>}
           {unit.attackRange > 0 && <span>🎯 {unit.attackRange}</span>}
+          {unit.detectionRange > 0 && <span>👁️ {unit.detectionRange}</span>}
         </div>
       </div>
     )
