@@ -7,13 +7,15 @@ import (
 )
 
 type GameSimulation struct {
-	state *GameState
-	game  *Game
+	state      *GameState
+	game       *Game
+	pathFinder *PathFinder
 }
 
 func NewGameSimulation(state *GameState) *GameSimulation {
 	return &GameSimulation{
-		state: state,
+		state:      state,
+		pathFinder: NewPathFinder(),
 	}
 }
 
@@ -391,71 +393,35 @@ func (s *GameSimulation) UpdateTargets() {
 	}
 }
 func (s *GameSimulation) Move() {
-	// Step toward target respecting per-unit move interval
+	// Usa A* pathfinding para movimiento inteligente
 	s.state.mu.Lock()
 	defer s.state.mu.Unlock()
 
 	for _, unit := range s.state.Units {
 		if !unit.CanMove {
-			// Non-movable units remain idle unless they attack
 			unit.Status = "idle"
 			continue
 		}
+
 		if unit.X == unit.TargetX && unit.Y == unit.TargetY {
-			// Reached destination; idle unless retargeted later
 			unit.Status = "idle"
 			continue
 		}
+
 		if s.state.Tick < unit.NextMoveTick {
-			// Waiting for next move tick
 			unit.Status = "waiting"
 			continue
 		}
 
-		// Compute one-tile step toward target (Manhattan), with axis fallback
-		newX, newY := unit.X, unit.Y
-		dx := unit.TargetX - unit.X
-		dy := unit.TargetY - unit.Y
+		// Usar A* pathfinding para obtener el siguiente paso
+		newX, newY, canMove := s.pathFinder.GetNextStep(s.state, unit, unit.TargetX, unit.TargetY)
 
-		tryXFirst := abs(dx) >= abs(dy)
-
-		stepTried := false
-		if tryXFirst {
-			if dx > 0 {
-				newX = unit.X + 1
-			} else if dx < 0 {
-				newX = unit.X - 1
-			}
-			stepTried = true
-			if s.state.isTileAllowedForUnit(unit, newX, newY) {
-				unit.X = newX
-				unit.Y = newY
-				unit.NextMoveTick = s.state.Tick + unit.MoveIntervalTicks
-				unit.Status = "moving"
-				continue
-			}
-			// fallback to Y axis
-			newX = unit.X
-		}
-
-		// Try Y axis (either primary or fallback)
-		if dy > 0 {
-			newY = unit.Y + 1
-		} else if dy < 0 {
-			newY = unit.Y - 1
-		} else if !stepTried {
-			// If X was aligned and Y already equal, nothing to do
-			unit.Status = "idle"
-			continue
-		}
-
-		if s.state.isTileAllowedForUnit(unit, newX, newY) {
+		if canMove && (newX != unit.X || newY != unit.Y) {
 			unit.X = newX
 			unit.Y = newY
 			unit.NextMoveTick = s.state.Tick + unit.MoveIntervalTicks
 			unit.Status = "moving"
 		} else {
-			// Both axes blocked; keep target to continue pursuing
 			unit.Status = "blocked"
 		}
 	}
@@ -524,4 +490,15 @@ func (s *GameSimulation) Cleanup() {
 		delete(s.state.Units, id)
 	}
 	s.state.mu.Unlock()
+
+	// Limpiar cache de pathfinding si hay muertes (cambios en mapa)
+	if len(dead) > 0 {
+		s.pathFinder.ClearCache()
+	}
+}
+
+// ClearPathfindingCache limpia el cache de pathfinding
+// Úsalo cuando el terreno del mapa cambia significativamente
+func (s *GameSimulation) ClearPathfindingCache() {
+	s.pathFinder.ClearCache()
 }

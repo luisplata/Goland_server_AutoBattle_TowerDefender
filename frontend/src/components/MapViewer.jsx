@@ -99,30 +99,6 @@ export default function MapViewer({ gameMap, units, selectedTile, onSelectTile, 
     }))
   }
 
-  const handleMapClick = (e) => {
-    e.preventDefault()
-    
-    if (disableZoom) return // No zoom cuando se está interactuando con el mapa
-    
-    const container = e.currentTarget.getBoundingClientRect()
-    
-    if (e.button === 0) { // Left click - Zoom In
-      handleZoomAtPoint(0.2, e.clientX, e.clientY, container)
-    } else if (e.button === 2) { // Right click - Zoom Out
-      handleZoomAtPoint(-0.2, e.clientX, e.clientY, container)
-    }
-  }
-
-  const handleWheel = (e) => {
-    e.preventDefault()
-    
-    if (disableZoom) return // No zoom cuando se está interactuando con el mapa
-    
-    const container = e.currentTarget.getBoundingClientRect()
-    const delta = e.deltaY > 0 ? -0.1 : 0.1
-    handleZoomAtPoint(delta, e.clientX, e.clientY, container)
-  }
-
   const handleMouseDown = (e) => {
     if (e.button === 1 || e.shiftKey) { // Middle mouse or Shift+Click for pan
       setIsPanning(true)
@@ -191,7 +167,6 @@ export default function MapViewer({ gameMap, units, selectedTile, onSelectTile, 
         ref={mapContainerRef}
         onMouseDown={(e) => {
           handleMouseDown(e)
-          handleMapClick(e)
         }}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -240,12 +215,14 @@ export default function MapViewer({ gameMap, units, selectedTile, onSelectTile, 
         {units && Object.values(units).map(unit => {
           const hpPercent = unit.maxHp ? (unit.hp / unit.maxHp) : 1
           const color = getUnitColor(unit.playerId, unit.unitType)
+          const cx = unit.x + 0.5 // center of tile instead of vertex
+          const cy = unit.y + 0.5
           
           return (
             <g key={unit.id}>
               <circle
-                cx={unit.x}
-                cy={unit.y}
+                cx={cx}
+                cy={cy}
                 r={0.4}
                 fill={color}
                 stroke="white"
@@ -253,16 +230,16 @@ export default function MapViewer({ gameMap, units, selectedTile, onSelectTile, 
               />
               {/* HP bar over unit */}
               <rect
-                x={unit.x - 0.3}
-                y={unit.y - 0.7}
+                x={cx - 0.3}
+                y={cy - 0.7}
                 width={0.6}
                 height={0.08}
                 fill="#1a1a1a"
                 stroke="none"
               />
               <rect
-                x={unit.x - 0.3}
-                y={unit.y - 0.7}
+                x={cx - 0.3}
+                y={cy - 0.7}
                 width={0.6 * hpPercent}
                 height={0.08}
                 fill={hpPercent > 0.5 ? '#4CAF50' : hpPercent > 0.25 ? '#FF9800' : '#F44336'}
@@ -271,8 +248,8 @@ export default function MapViewer({ gameMap, units, selectedTile, onSelectTile, 
               {/* Attack indicator for units with damage */}
               {unit.attackDamage > 0 && (
                 <circle
-                  cx={unit.x}
-                  cy={unit.y}
+                  cx={cx}
+                  cy={cy}
                   r={unit.attackRange || 1}
                   fill="none"
                   stroke={color}
@@ -320,7 +297,7 @@ export default function MapViewer({ gameMap, units, selectedTile, onSelectTile, 
             Selected: ({selectedTile.x}, {selectedTile.y}) — {selectedTile.walkable ? 'Walkable ✅' : 'Water ❌'}
           </span>
         ) : (
-          <span>Left Click: Zoom In | Right Click: Zoom Out | Shift+Drag: Pan</span>
+          <span>Scroll: Zoom | Shift+Drag or Middle Click: Pan</span>
         )}
       </div>
     </div>
