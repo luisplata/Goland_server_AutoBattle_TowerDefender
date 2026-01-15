@@ -59,9 +59,13 @@ func BuildSnapshot(state *GameState) Snapshot {
 	}
 
 	// Determinar quién es el jugador actual del turno
-	currentPlayerTurn := state.HumanPlayerID
-	if state.AIPlayerID > 0 && state.TurnNumber%2 == 0 {
-		currentPlayerTurn = state.AIPlayerID
+	// Durante preparation, ambos jugadores pueden actuar (currentPlayerTurn = 0)
+	currentPlayerTurn := 0
+	if state.CurrentPhase != PhasePreparation {
+		currentPlayerTurn = state.HumanPlayerID
+		if state.AIPlayerID > 0 && state.TurnNumber%2 == 0 {
+			currentPlayerTurn = state.AIPlayerID
+		}
 	}
 
 	return Snapshot{

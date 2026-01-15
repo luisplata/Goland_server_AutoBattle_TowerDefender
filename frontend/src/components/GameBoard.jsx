@@ -83,6 +83,7 @@ export default function GameBoard({ state, playerId, selectedUnitId, onSelectUni
     const phaseInfo = getPhaseInfo(state.currentPhase)
     const currentPlayer = state.currentPlayerTurn || 0
     const isHumanTurn = currentPlayer === state.humanPlayerId
+    const isSimultaneous = currentPlayer === 0
     
     return (
       <div className="game-info">
@@ -92,8 +93,8 @@ export default function GameBoard({ state, playerId, selectedUnitId, onSelectUni
             {phaseInfo.emoji} {phaseInfo.label}
           </span>
           <span>🎯 Turn: {state.turnNumber || 0}</span>
-          <span className={isHumanTurn ? 'your-turn' : 'opponent-turn'}>
-            {isHumanTurn ? '👤 Your Turn' : '🤖 AI Turn'}
+          <span className={isSimultaneous ? 'simultaneous-turn' : (isHumanTurn ? 'your-turn' : 'opponent-turn')}>
+            {isSimultaneous ? '⏱️ Both Players' : (isHumanTurn ? '👤 Your Turn' : '🤖 AI Turn')}
           </span>
         </div>
       </div>

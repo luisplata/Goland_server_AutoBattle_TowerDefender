@@ -32,8 +32,8 @@ func DefaultPhaseConfig() PhaseConfig {
 	return PhaseConfig{
 		TurnStartDuration:        15,  // ~3 segundos
 		PreparationDuration:      150, // ~30 segundos
-		BattleDuration:           25,  // ~5 segundos
-		TurnEndDuration:          10,  // ~2 segundos
+		BattleDuration:           300, // ~60 segundos
+		TurnEndDuration:          15,  // ~3 segundos
 		AIReadyDelay:             5,   // ~1 segundo
 		DisconnectTimeoutSeconds: 30,  // 30 segundos de timeout
 	}
@@ -756,16 +756,29 @@ func (g *GameState) isTileAllowedForUnit(unit *UnitState, x, y int) bool {
 }
 
 // findSpawnPosition intenta encontrar una posición válida para un unitType.
-func (g *GameState) findSpawnPosition(unitType string, attempts int) (int, int, bool) {
+// Para estructuras, valida que esté dentro del área controlada por el jugador.
+func (g *GameState) findSpawnPosition(unitType string, playerID int, attempts int) (int, int, bool) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+
+	stats := GetUnitStats(unitType)
+	isStructure := stats.Category == CategoryStructure
 
 	for i := 0; i < attempts; i++ {
 		x := rand.Intn(g.Map.Width)
 		y := rand.Intn(g.Map.Height)
-		if g.canUnitTypeEnter(unitType, -1, x, y) {
-			return x, y, true
+
+		// Validar terreno y ocupación
+		if !g.canUnitTypeEnter(unitType, -1, x, y) {
+			continue
 		}
+
+		// Si es estructura, validar área controlada
+		if isStructure && !g.isWithinControlledArea(playerID, x, y) {
+			continue
+		}
+
+		return x, y, true
 	}
 	return 0, 0, false
 }

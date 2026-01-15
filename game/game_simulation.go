@@ -264,10 +264,10 @@ func (s *GameSimulation) playAICard() {
 	card := p.Hand[0]
 	s.state.mu.Unlock()
 
-	// Buscar posición válida
-	x, y, okPos := s.state.findSpawnPosition(card, 50)
+	// Buscar posición válida (con validación de área controlada)
+	x, y, okPos := s.state.findSpawnPosition(card, aiID, 50)
 	if !okPos {
-		slog.Warn("AI could not find spawn position for card", "card", card)
+		slog.Warn("AI could not find spawn position for card", "card", card, "aiID", aiID)
 		return
 	}
 

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import './MapViewer.css'
 
 const TERRAIN_COLORS = {
@@ -43,55 +43,87 @@ const getUnitColor = (playerId, unitType) => {
 }
 
 export default function MapViewer({ gameMap, units, selectedTile, onSelectTile, disableZoom = false, playerId, selectedCard }) {
-  const [zoom, setZoom] = useState(1)
+  const [zoom, setZoom] = useState(3)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
   const [startPan, setStartPan] = useState({ x: 0, y: 0 })
   const mapContainerRef = useRef(null)
   
-  const handleZoomAtPoint = (delta, mouseX, mouseY, containerRect) => {
+  // Usar useCallback para el handler del wheel
+  const handleWheel = useCallback((e) => {
+    e.preventDefault()
+    
+    if (disableZoom) return
+
+    const container = mapContainerRef.current
+    if (!container) return
+
+    const rect = container.getBoundingClientRect()
+    const delta = e.deltaY > 0 ? -0.2 : 0.2
+    
+    // Mouse position relative to container
+    const mouseX = e.clientX - rect.left
+    const mouseY = e.clientY - rect.top
+    
+    // Handle zoom at mouse position
     setZoom(oldZoom => {
-      const newZoom = Math.max(0.5, Math.min(5, oldZoom + delta))
+      const newZoom = Math.max(0.5, Math.min(10, oldZoom + delta))
       
       if (oldZoom === newZoom) return oldZoom // No change in zoom
       
-      // Mouse position relative to container
-      const mouseXInContainer = mouseX - containerRect.left
-      const mouseYInContainer = mouseY - containerRect.top
-      
       // Calculate the new pan to keep the point under the mouse stationary
-      const scale = newZoom / oldZoom
-      
-      setPan(prevPan => ({
-        x: mouseXInContainer - (mouseXInContainer - prevPan.x) * scale,
-        y: mouseYInContainer - (mouseYInContainer - prevPan.y) * scale
-      }))
+      // Formula: newPan = mousePos - (mousePos - oldPan) * (newZoom / oldZoom)
+      setPan(prevPan => {
+        const zoomRatio = newZoom / oldZoom
+        return {
+          x: mouseX - (mouseX - prevPan.x) * zoomRatio,
+          y: mouseY - (mouseY - prevPan.y) * zoomRatio
+        }
+      })
       
       return newZoom
     })
-  }
+  }, [disableZoom])
+
+  // Zoom at center of viewport (for buttons)
+  const handleZoomAtCenter = useCallback((delta) => {
+    if (disableZoom) return
+
+    const container = mapContainerRef.current
+    if (!container) return
+
+    const rect = container.getBoundingClientRect()
+    const centerX = rect.width / 2
+    const centerY = rect.height / 2
+    
+    setZoom(oldZoom => {
+      const newZoom = Math.max(0.5, Math.min(10, oldZoom + delta))
+      
+      if (oldZoom === newZoom) return oldZoom
+      
+      setPan(prevPan => {
+        const zoomRatio = newZoom / oldZoom
+        return {
+          x: centerX - (centerX - prevPan.x) * zoomRatio,
+          y: centerY - (centerY - prevPan.y) * zoomRatio
+        }
+      })
+      
+      return newZoom
+    })
+  }, [disableZoom])
   
   // Agregar wheel listener con { passive: false } para poder usar preventDefault
   useEffect(() => {
     const container = mapContainerRef.current
     if (!container) return
 
-    const wheelHandler = (e) => {
-      e.preventDefault()
-      
-      if (disableZoom) return
-
-      const rect = container.getBoundingClientRect()
-      const delta = e.deltaY > 0 ? -0.1 : 0.1
-      handleZoomAtPoint(delta, e.clientX, e.clientY, rect)
-    }
-
-    container.addEventListener('wheel', wheelHandler, { passive: false })
+    container.addEventListener('wheel', handleWheel, { passive: false })
     
     return () => {
-      container.removeEventListener('wheel', wheelHandler)
+      container.removeEventListener('wheel', handleWheel)
     }
-  }, [disableZoom])
+  }, [handleWheel])
   
   if (!gameMap || !gameMap.tiles) {
     return <div className="map-viewer">Loading map...</div>
@@ -123,7 +155,7 @@ export default function MapViewer({ gameMap, units, selectedTile, onSelectTile, 
   }
 
   const resetView = () => {
-    setZoom(1)
+    setZoom(3)
     setPan({ x: 0, y: 0 })
   }
 
@@ -181,20 +213,10 @@ export default function MapViewer({ gameMap, units, selectedTile, onSelectTile, 
       <h3>🗺️ Game Map</h3>
       
       <div className="map-controls">
-        <button onClick={(e) => {
-          if (disableZoom) return
-          const container = e.target.closest('.map-viewer').querySelector('.map-container')
-          const rect = container.getBoundingClientRect()
-          handleZoomAtPoint(0.2, rect.left + rect.width / 2, rect.top + rect.height / 2, rect)
-        }} className="zoom-btn" title="Zoom In" disabled={disableZoom}>🔍 +</button>
-        <button onClick={(e) => {
-          if (disableZoom) return
-          const container = e.target.closest('.map-viewer').querySelector('.map-container')
-          const rect = container.getBoundingClientRect()
-          handleZoomAtPoint(-0.2, rect.left + rect.width / 2, rect.top + rect.height / 2, rect)
-        }} className="zoom-btn" title="Zoom Out" disabled={disableZoom}>🔍 -</button>
+        <button onClick={() => handleZoomAtCenter(0.2)} className="zoom-btn" title="Zoom In" disabled={disableZoom}>🔍 +</button>
+        <button onClick={() => handleZoomAtCenter(-0.2)} className="zoom-btn" title="Zoom Out" disabled={disableZoom}>🔍 -</button>
         <button onClick={resetView} className="zoom-btn" title="Reset View" disabled={disableZoom}>🎯</button>
-        <span className="zoom-level">{(zoom * 100).toFixed(0)}%</span>
+        <span className="zoom-level">{((zoom / 3) * 100).toFixed(0)}%</span>
       </div>
 
       <div 
@@ -213,9 +235,11 @@ export default function MapViewer({ gameMap, units, selectedTile, onSelectTile, 
           width={mapWidth} 
           height={mapHeight} 
           className="map-svg"
-          viewBox={`${-pan.x / (zoom * tileSize)} ${-pan.y / (zoom * tileSize)} ${gameMap.width / zoom} ${gameMap.height / zoom}`}
           onMouseDown={handleTileClick}
-          style={{ transform: `scale(${zoom})`, transformOrigin: '0 0' }}
+          style={{ 
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, 
+            transformOrigin: '0 0' 
+          }}
         >
         {/* Tiles */}
         {gameMap.tiles.map((row, y) =>
