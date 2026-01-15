@@ -42,7 +42,7 @@ const getUnitColor = (playerId, unitType) => {
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`
 }
 
-export default function MapViewer({ gameMap, units, selectedTile, onSelectTile, disableZoom = false }) {
+export default function MapViewer({ gameMap, units, selectedTile, onSelectTile, disableZoom = false, playerId, selectedCard }) {
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
@@ -127,6 +127,39 @@ export default function MapViewer({ gameMap, units, selectedTile, onSelectTile, 
     setPan({ x: 0, y: 0 })
   }
 
+  // Calculate controlled area when player is selecting a card
+  const calculateControlledArea = () => {
+    if (!playerId || !units || !selectedCard) return new Set()
+
+    const controlled = new Set()
+    const myUnits = Object.values(units).filter(u => u.playerId === playerId && u.hp > 0)
+    
+    for (const unit of myUnits) {
+      if (!unit.buildRange || unit.buildRange <= 0) continue
+      
+      // Add all tiles within Manhattan distance of buildRange
+      for (let dy = -unit.buildRange; dy <= unit.buildRange; dy++) {
+        for (let dx = -unit.buildRange; dx <= unit.buildRange; dx++) {
+          const manhattanDist = Math.abs(dx) + Math.abs(dy)
+          if (manhattanDist <= unit.buildRange) {
+            const tileX = unit.x + dx
+            const tileY = unit.y + dy
+            if (tileX >= 0 && tileX < gameMap.width && tileY >= 0 && tileY < gameMap.height) {
+              controlled.add(`${tileX},${tileY}`)
+            }
+          }
+        }
+      }
+    }
+    
+    return controlled
+  }
+
+  const controlledArea = calculateControlledArea()
+  
+  // Check if selected card is a structure (requires controlled area)
+  const isStructureCard = selectedCard && ['tower', 'wall', 'land_generator', 'naval_generator'].includes(selectedCard)
+
   const handleTileClick = (e) => {
     if (isPanning || e.button !== 0) return // Only handle left click for tile selection
     const svg = e.currentTarget
@@ -186,18 +219,27 @@ export default function MapViewer({ gameMap, units, selectedTile, onSelectTile, 
         >
         {/* Tiles */}
         {gameMap.tiles.map((row, y) =>
-          row.map((tile, x) => (
-            <rect
-              key={`${x}-${y}`}
-              x={x}
-              y={y}
-              width={1}
-              height={1}
-              fill={TERRAIN_COLORS[tile.terrainId] || '#666'}
-              opacity={tile.walkable ? 1 : 0.6}
-              stroke="none"
-            />
-          ))
+          row.map((tile, x) => {
+            const isControlled = controlledArea.has(`${x},${y}`)
+            const showControlled = selectedCard && controlledArea.size > 0
+            // For structures, show strict control (red outside). For units, show info only (blue tint)
+            const isValidForStructure = !isStructureCard || isControlled
+            
+            return (
+              <rect
+                key={`${x}-${y}`}
+                x={x}
+                y={y}
+                width={1}
+                height={1}
+                fill={TERRAIN_COLORS[tile.terrainId] || '#666'}
+                opacity={tile.walkable ? 1 : 0.6}
+                stroke={showControlled ? (isValidForStructure ? (isControlled ? '#00ff88' : 'none') : '#ff4444') : 'none'}
+                strokeWidth={showControlled ? 0.02 : 0}
+                fillOpacity={showControlled && isStructureCard && !isControlled ? 0.3 : 1}
+              />
+            )
+          })
         )}
 
         {/* Selection highlight */}
@@ -259,6 +301,19 @@ export default function MapViewer({ gameMap, units, selectedTile, onSelectTile, 
                   opacity="0.2"
                 />
               )}
+              {/* Build range indicator for structures */}
+              {unit.buildRange > 0 && (
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={unit.buildRange}
+                  fill="none"
+                  stroke="#00ff88"
+                  strokeWidth="0.03"
+                  opacity="0.15"
+                  strokeDasharray="0.2,0.2"
+                />
+              )}
             </g>
           )
         })}
@@ -298,6 +353,12 @@ export default function MapViewer({ gameMap, units, selectedTile, onSelectTile, 
           <span>
             Selected: ({selectedTile.x}, {selectedTile.y}) — {selectedTile.walkable ? 'Walkable ✅' : 'Water ❌'}
           </span>
+        ) : selectedCard && controlledArea.size > 0 ? (
+          isStructureCard ? (
+            <span>🟢 Green border: Can build here | 🔴 Red border: Outside controlled area</span>
+          ) : (
+            <span>🟢 Green border: Your controlled area (units can spawn anywhere walkable)</span>
+          )
         ) : (
           <span>Scroll: Zoom | Shift+Drag or Middle Click: Pan</span>
         )}

@@ -70,6 +70,7 @@ export default function GameBoard({ state, playerId, selectedUnitId, onSelectUni
 
   const getPhaseInfo = (phase) => {
     const phaseData = {
+      'base_selection': { emoji: '🏰', color: '#9C27B0', label: 'Base Selection' },
       'turn_start': { emoji: '🎬', color: '#4CAF50', label: 'Turn Start' },
       'preparation': { emoji: '🎴', color: '#2196F3', label: 'Preparation' },
       'battle': { emoji: '⚔️', color: '#FF5722', label: 'Battle!' },

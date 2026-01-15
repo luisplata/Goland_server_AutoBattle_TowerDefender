@@ -3,6 +3,7 @@ package main
 import (
 	"autobattle-server/game"
 	"autobattle-server/network"
+	"log/slog"
 	"time"
 )
 
@@ -24,6 +25,13 @@ func main() {
 				previousPhase := g.State.GetCurrentPhase()
 
 				g.Simulation.ProcessTick()
+
+				// Verificar condiciones de victoria/derrota
+				if gameOver, loserID, reason := g.Simulation.CheckVictoryConditions(); gameOver {
+					slog.Info("Game ended - victory condition met", "gameId", g.ID, "loserId", loserID, "reason", reason)
+					gameManager.EndGame(g.ID, loserID, reason)
+					continue // Skip further processing for this game
+				}
 
 				currentSnapshot := game.BuildSnapshot(g.State)
 

@@ -55,6 +55,9 @@ type UnitStats struct {
 
 	// Blocking
 	IsBlocker bool `json:"isBlocker"` // Si bloquea el paso
+
+	// Build Range - área que esta estructura expande para construcción
+	BuildRange int `json:"buildRange"` // Radio que extiende el área controlada (0 = no expande)
 }
 
 // GetUnitStats retorna las estadísticas para un tipo de unidad
@@ -72,6 +75,7 @@ func GetUnitStats(unitType string) UnitStats {
 			GenerationInterval: 20, // Genera cada 4 segundos
 			MaxUnitsGenerated:  -1, // Infinitas unidades
 			IsBlocker:          true,
+			BuildRange:         10, // Área inicial de construcción
 		},
 
 		// Torres
@@ -85,6 +89,7 @@ func GetUnitStats(unitType string) UnitStats {
 			AttackIntervalTicks: 10, // Ataca cada 2 segundos
 			AttackDPS:           12.5,
 			IsBlocker:           true,
+			BuildRange:          5, // Extiende el área de construcción
 		},
 
 		// Generador de unidades terrestres
@@ -98,6 +103,7 @@ func GetUnitStats(unitType string) UnitStats {
 			GenerationInterval: 25, // Genera cada 5 segundos
 			MaxUnitsGenerated:  -1, // Infinitas unidades
 			IsBlocker:          true,
+			BuildRange:         4, // Extiende el área de construcción
 		},
 
 		// Generador de unidades navales
@@ -111,6 +117,7 @@ func GetUnitStats(unitType string) UnitStats {
 			GenerationInterval: 30, // Genera cada 6 segundos
 			MaxUnitsGenerated:  -1, // Infinitas unidades
 			IsBlocker:          true,
+			BuildRange:         4, // Extiende el área de construcción
 		},
 
 		// Muralla
@@ -120,6 +127,7 @@ func GetUnitStats(unitType string) UnitStats {
 			CanMove:        false,
 			DetectionRange: 4,
 			IsBlocker:      true,
+			BuildRange:     2, // Extiende menos el área
 		},
 
 		// Soldado terrestre

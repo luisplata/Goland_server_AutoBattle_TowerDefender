@@ -14,6 +14,7 @@ function App() {
   const [selectedTile, setSelectedTile] = useState(null)
   const [lastTurn, setLastTurn] = useState(null)
   const [selectedUnitId, setSelectedUnitId] = useState(null)
+  const [selectedCard, setSelectedCard] = useState(null)
 
   const API_URL = 'http://localhost:8080'
   const WS_URL = 'ws://localhost:8080/ws'
@@ -48,6 +49,20 @@ function App() {
     
     if (targetGameId) {
       console.log('Attempting to join existing game:', targetGameId)
+      
+      // Check if we have a saved playerId for this game
+      const savedPlayerId = localStorage.getItem(`playerId_${targetGameId}`)
+      
+      if (savedPlayerId) {
+        // Reconnect with existing player ID
+        console.log('Reconnecting with saved player ID:', savedPlayerId)
+        setGameId(targetGameId)
+        setPlayerId(Number(savedPlayerId))
+        await fetchGameState(targetGameId)
+        connectWebSocket(Number(savedPlayerId), targetGameId)
+        return
+      }
+      
       try {
         const res = await fetch(`${API_URL}/game/join?gameId=${targetGameId}`)
         
@@ -56,6 +71,7 @@ function App() {
           console.log('Successfully joined game:', targetGameId, 'Player ID:', data.id)
           setGameId(targetGameId)
           setPlayerId(data.id)
+          localStorage.setItem(`playerId_${targetGameId}`, String(data.id))
           await fetchGameState(targetGameId)
           connectWebSocket(data.id, targetGameId)
           return
@@ -98,6 +114,7 @@ function App() {
       const playerData = await joinRes.json()
       console.log('Successfully joined new game:', newGameId, 'Player ID:', playerData.id)
       setPlayerId(playerData.id)
+      localStorage.setItem(`playerId_${newGameId}`, String(playerData.id))
       await fetchGameState(newGameId)
       connectWebSocket(playerData.id, newGameId)
     } catch (err) {
@@ -227,7 +244,9 @@ function App() {
               units={gameState?.units} 
               selectedTile={selectedTile}
               onSelectTile={(tile) => setSelectedTile(tile)}
-              disableZoom={gameState?.currentPhase === 'base_selection' || selectedTile !== null}
+              disableZoom={false}
+              playerId={playerId}
+              selectedCard={selectedCard}
             />
             <GameBoard 
               state={gameState}
@@ -243,6 +262,8 @@ function App() {
               gameMap={gameState?.map}
               onClearSelection={() => setSelectedTile(null)}
               selectedUnitId={selectedUnitId}
+              selectedCard={selectedCard}
+              onSelectCard={setSelectedCard}
             />
           </>
         )}

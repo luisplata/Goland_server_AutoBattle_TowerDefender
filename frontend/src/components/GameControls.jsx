@@ -9,8 +9,7 @@ const CARD_EMOJIS = {
   land_generator: '🏞️',
 }
 
-export default function GameControls({ state, playerId, onCommand, selectedTile, gameMap, onClearSelection, selectedUnitId }) {
-  const [selectedCard, setSelectedCard] = useState(null)
+export default function GameControls({ state, playerId, onCommand, selectedTile, gameMap, onClearSelection, selectedUnitId, selectedCard, onSelectCard }) {
   const [spawnX, setSpawnX] = useState('50')
   const [spawnY, setSpawnY] = useState('50')
   const [moveX, setMoveX] = useState('51')
@@ -62,7 +61,7 @@ export default function GameControls({ state, playerId, onCommand, selectedTile,
       }
     })
     
-    setSelectedCard(null)
+    onSelectCard(null)
     setSpawnX('50')
     setSpawnY('50')
     
@@ -183,7 +182,7 @@ export default function GameControls({ state, playerId, onCommand, selectedTile,
               <div
                 key={index}
                 className={`card ${selectedCard === card ? 'selected' : ''}`}
-                onClick={() => setSelectedCard(selectedCard === card ? null : card)}
+                onClick={() => onSelectCard(selectedCard === card ? null : card)}
                 style={{ pointerEvents: isMyTurn ? 'auto' : 'none', opacity: isMyTurn ? 1 : 0.5 }}
               >
                 <div className="card-emoji">{CARD_EMOJIS[card] || '?'}</div>

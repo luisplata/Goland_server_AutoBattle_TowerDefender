@@ -266,16 +266,16 @@ func (s *HttpServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 						g.State.SetPlayerConnected(client.playerID, false)
 						slog.Info("Player disconnected", "gameId", client.gameID, "playerId", client.playerID)
 
-						// Start 10s timeout to end game if still offline
-						go func(gid, pid int) {
-							time.Sleep(10 * time.Second)
+						// Start timeout from config to end game if still offline
+						go func(gid, pid int, timeoutSeconds int) {
+							time.Sleep(time.Duration(timeoutSeconds) * time.Second)
 							if g2, ok2 := s.manager.GetGame(gid); ok2 {
 								if !g2.State.IsPlayerConnected(pid) {
-									slog.Info("Disconnect timeout reached; ending game", "gameId", gid, "playerId", pid)
+									slog.Info("Disconnect timeout reached; ending game", "gameId", gid, "playerId", pid, "timeoutSeconds", timeoutSeconds)
 									s.manager.EndGame(gid, pid, "disconnect_timeout")
 								}
 							}
-						}(client.gameID, client.playerID)
+						}(client.gameID, client.playerID, g.State.Config.DisconnectTimeoutSeconds)
 					}
 				}
 				return

@@ -105,12 +105,17 @@ func (s *GameSimulation) ApplyCommand(cmd command.Command) {
 		x_position := int(data["x"].(float64))
 		y_position := int(data["y"].(float64))
 
-		if !s.state.ConsumeCardFromHand(cmd.PlayerID, unitType) {
+		// Verificar que la carta esté en la mano
+		if !s.state.HasCardInHand(cmd.PlayerID, unitType) {
 			slog.Warn("Spawn rejected: card not in hand", "playerId", cmd.PlayerID, "unitType", unitType)
 			return
 		}
 
-		s.spawnUnit(cmd.GameID, cmd.PlayerID, unitType, x_position, y_position)
+		// Intentar spawn primero
+		if s.spawnUnit(cmd.GameID, cmd.PlayerID, unitType, x_position, y_position) {
+			// Solo consumir carta si el spawn fue exitoso
+			s.state.ConsumeCardFromHand(cmd.PlayerID, unitType)
+		}
 
 	case command.CommandMoveUnit:
 		data, ok := cmd.Data.(map[string]any)
@@ -266,26 +271,25 @@ func (s *GameSimulation) playAICard() {
 		return
 	}
 
-	// Consumir carta y spawnear
-	if !s.state.ConsumeCardFromHand(aiID, card) {
-		slog.Warn("AI failed to consume card", "card", card)
-		return
+	// Spawnear primero, luego consumir carta solo si fue exitoso
+	if s.spawnUnit(0, aiID, card, x, y) {
+		s.state.ConsumeCardFromHand(aiID, card)
 	}
-	s.spawnUnit(0, aiID, card, x, y)
 }
 
-func (s *GameSimulation) spawnUnit(gameId int, playerId int, unitType string, x_position int, y_position int) {
+func (s *GameSimulation) spawnUnit(gameId int, playerId int, unitType string, x_position int, y_position int) bool {
 	slog.Info("Spawning unit", "tick", s.state.Tick, "gameId", gameId, "playerId", playerId, "unitType", unitType, "x", x_position, "y", y_position)
 
 	// Crear la unidad en el estado del juego
 	unit := s.state.SpawnUnit(playerId, unitType, x_position, y_position)
 
 	if unit == nil {
-		slog.Warn("Failed to spawn unit - invalid position", "tick", s.state.Tick, "x", x_position, "y", y_position)
-		return
+		slog.Warn("Failed to spawn unit - invalid position or outside controlled area", "tick", s.state.Tick, "x", x_position, "y", y_position)
+		return false
 	}
 
 	slog.Info("Unit spawned successfully", "tick", s.state.Tick, "unitId", unit.ID, "playerId", playerId, "x", x_position, "y", y_position)
+	return true
 }
 
 // =======================
@@ -519,4 +523,26 @@ func (s *GameSimulation) Cleanup() {
 // Úsalo cuando el terreno del mapa cambia significativamente
 func (s *GameSimulation) ClearPathfindingCache() {
 	s.pathFinder.ClearCache()
+}
+
+// CheckVictoryConditions verifica si alguna base fue destruida y retorna (gameOver, loserID, reason)
+func (s *GameSimulation) CheckVictoryConditions() (bool, int, string) {
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+
+	// Verificar si la base humana fue destruida
+	if s.state.HumanBaseID > 0 {
+		if humanBase, ok := s.state.Units[s.state.HumanBaseID]; !ok || humanBase.HP <= 0 {
+			return true, s.state.HumanPlayerID, "human_base_destroyed"
+		}
+	}
+
+	// Verificar si la base AI fue destruida
+	if s.state.AIBaseID > 0 {
+		if aiBase, ok := s.state.Units[s.state.AIBaseID]; !ok || aiBase.HP <= 0 {
+			return true, s.state.AIPlayerID, "ai_base_destroyed"
+		}
+	}
+
+	return false, 0, ""
 }

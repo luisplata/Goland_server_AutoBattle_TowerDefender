@@ -19,21 +19,23 @@ const (
 
 // PhaseConfig define la duración de cada fase en ticks
 type PhaseConfig struct {
-	TurnStartDuration   int `json:"turnStartDuration"`   // Ticks para fase turn_start
-	PreparationDuration int `json:"preparationDuration"` // Ticks máximo para preparation (o hasta que estén listos)
-	BattleDuration      int `json:"battleDuration"`      // Ticks para batalla (placeholder)
-	TurnEndDuration     int `json:"turnEndDuration"`     // Ticks para turn_end
-	AIReadyDelay        int `json:"aiReadyDelay"`        // Ticks que espera la IA para marcarse lista
+	TurnStartDuration        int `json:"turnStartDuration"`        // Ticks para fase turn_start
+	PreparationDuration      int `json:"preparationDuration"`      // Ticks máximo para preparation (o hasta que estén listos)
+	BattleDuration           int `json:"battleDuration"`           // Ticks para batalla (placeholder)
+	TurnEndDuration          int `json:"turnEndDuration"`          // Ticks para turn_end
+	AIReadyDelay             int `json:"aiReadyDelay"`             // Ticks que espera la IA para marcarse lista
+	DisconnectTimeoutSeconds int `json:"disconnectTimeoutSeconds"` // Segundos antes de terminar juego por desconexión
 }
 
 // DefaultPhaseConfig retorna la configuración por defecto
 func DefaultPhaseConfig() PhaseConfig {
 	return PhaseConfig{
-		TurnStartDuration:   15,  // ~3 segundos
-		PreparationDuration: 150, // ~30 segundos
-		BattleDuration:      25,  // ~5 segundos
-		TurnEndDuration:     10,  // ~2 segundos
-		AIReadyDelay:        5,   // ~1 segundo
+		TurnStartDuration:        15,  // ~3 segundos
+		PreparationDuration:      150, // ~30 segundos
+		BattleDuration:           25,  // ~5 segundos
+		TurnEndDuration:          10,  // ~2 segundos
+		AIReadyDelay:             5,   // ~1 segundo
+		DisconnectTimeoutSeconds: 30,  // 30 segundos de timeout
 	}
 }
 
@@ -72,15 +74,24 @@ type GameState struct {
 }
 
 // defaultDeck devuelve un mazo básico con todas las cartas disponibles.
+// Cada tipo de carta tiene múltiples copias para asegurar disponibilidad.
 func defaultDeck() []string {
-	return []string{
-		TypeTower,
-		TypeLandGenerator,
-		TypeNavalGenerator,
-		TypeWall,
-		TypeWall,
-		TypeWarrior,
+	deck := []string{}
+	// 15 copias de cada tipo de estructura
+	for i := 0; i < 15; i++ {
+		deck = append(deck, TypeTower)
+		deck = append(deck, TypeLandGenerator)
+		deck = append(deck, TypeNavalGenerator)
 	}
+	// 20 copias de muros (más comunes)
+	for i := 0; i < 20; i++ {
+		deck = append(deck, TypeWall)
+	}
+	// 30 copias de warriors (unidad básica)
+	for i := 0; i < 30; i++ {
+		deck = append(deck, TypeWarrior)
+	}
+	return deck
 }
 
 func init() {
@@ -133,6 +144,9 @@ type UnitState struct {
 
 	// Category for pathfinding
 	Category UnitCategory `json:"category"`
+
+	// Build Range - área que esta estructura expande
+	BuildRange int `json:"buildRange"` // Radio de construcción que proporciona
 }
 
 func NewGameState() *GameState {
@@ -265,9 +279,12 @@ func (g *GameState) IsPlayerConnected(playerID int) bool {
 }
 
 // drawCardLocked roba una carta del mazo del jugador (requiere lock tomado).
+// Si el mazo se vacía, se recrea y baraja automáticamente (mazo infinito).
 func (g *GameState) drawCardLocked(p *Player) (string, bool) {
 	if len(p.Deck) == 0 {
-		return "", false
+		// Recrear y barajar el mazo cuando se acabe
+		p.Deck = defaultDeck()
+		shuffleCards(p.Deck)
 	}
 	card := p.Deck[0]
 	p.Deck = p.Deck[1:]
@@ -286,6 +303,23 @@ func (g *GameState) DrawCard(playerID int) (string, bool) {
 		return "", false
 	}
 	return g.drawCardLocked(p)
+}
+
+// HasCardInHand verifica si un jugador tiene una carta específica en su mano.
+func (g *GameState) HasCardInHand(playerID int, unitType string) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	p, ok := g.Players[playerID]
+	if !ok {
+		return false
+	}
+	for _, c := range p.Hand {
+		if c == unitType {
+			return true
+		}
+	}
+	return false
 }
 
 // ConsumeCardFromHand remueve una carta específica de la mano del jugador.
@@ -460,8 +494,14 @@ func (g *GameState) SpawnUnit(playerID int, unitType string, x, y int) *UnitStat
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	// Validar posición
+	// Validar posición (terreno + ocupación)
 	if !g.canUnitTypeEnter(unitType, -1, x, y) {
+		return nil
+	}
+
+	// Validar que esté dentro del área controlada por el jugador (solo estructuras)
+	stats := GetUnitStats(unitType)
+	if stats.Category == CategoryStructure && !g.isWithinControlledArea(playerID, x, y) {
 		return nil
 	}
 
@@ -620,6 +660,9 @@ func (g *GameState) applyUnitStats(unit *UnitState) {
 	// Aplicar propiedades de bloqueo
 	unit.IsBlocker = stats.IsBlocker
 
+	// Aplicar rango de construcción
+	unit.BuildRange = stats.BuildRange
+
 	// Estado inicial
 	unit.Status = "idle"
 }
@@ -659,6 +702,52 @@ func (g *GameState) canUnitTypeEnter(unitType string, skipUnitID int, x, y int) 
 	}
 
 	return true
+}
+
+// isWithinControlledArea verifica si una posición está dentro del área controlada por un jugador.
+// El área controlada está determinada por la base principal y las estructuras con BuildRange > 0.
+func (g *GameState) isWithinControlledArea(playerID int, x, y int) bool {
+	// Si el jugador no tiene base aún, permitir spawneo libre (para colocar la base inicial)
+	baseID := 0
+	if playerID == g.HumanPlayerID {
+		baseID = g.HumanBaseID
+	} else if playerID == g.AIPlayerID {
+		baseID = g.AIBaseID
+	}
+
+	if baseID == 0 {
+		return true // Permite colocar la base inicial en cualquier lugar
+	}
+
+	// Verificar si está dentro del rango de alguna estructura del jugador
+	for _, unit := range g.Units {
+		if unit.PlayerID != playerID {
+			continue
+		}
+		if unit.HP <= 0 {
+			continue
+		}
+		if unit.BuildRange <= 0 {
+			continue
+		}
+
+		// Calcular distancia Manhattan
+		dx := x - unit.X
+		if dx < 0 {
+			dx = -dx
+		}
+		dy := y - unit.Y
+		if dy < 0 {
+			dy = -dy
+		}
+		dist := dx + dy
+
+		if dist <= unit.BuildRange {
+			return true
+		}
+	}
+
+	return false
 }
 
 // isTileAllowedForUnit checks terrain and blocking constraints for the given unit.
