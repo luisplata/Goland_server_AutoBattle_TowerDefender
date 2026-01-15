@@ -1,16 +1,18 @@
 package game
 
 type Snapshot struct {
-	Type             string             `json:"type"`
-	Tick             int                `json:"tick"`
-	Units            map[int]*UnitState `json:"units"`
-	CurrentPhase     GamePhase          `json:"currentPhase"`
-	TurnNumber       int                `json:"turnNumber"`
-	HumanPlayerID    int                `json:"humanPlayerId"`
-	AIPlayerID       int                `json:"aiPlayerId"`
-	HumanPlayerReady bool               `json:"humanPlayerReady"`
-	AIPlayerReady    bool               `json:"aiPlayerReady"`
-	Config           PhaseConfig        `json:"config"` // Configuración de fases
+	Type              string             `json:"type"`
+	Tick              int                `json:"tick"`
+	Units             map[int]*UnitState `json:"units"`
+	Players           map[int]*Player    `json:"players"`
+	CurrentPhase      GamePhase          `json:"currentPhase"`
+	TurnNumber        int                `json:"turnNumber"`
+	HumanPlayerID     int                `json:"humanPlayerId"`
+	AIPlayerID        int                `json:"aiPlayerId"`
+	HumanPlayerReady  bool               `json:"humanPlayerReady"`
+	AIPlayerReady     bool               `json:"aiPlayerReady"`
+	Config            PhaseConfig        `json:"config"`            // Configuración de fases
+	CurrentPlayerTurn int                `json:"currentPlayerTurn"` // ID del jugador cuyo turno es
 }
 
 func BuildSnapshot(state *GameState) Snapshot {
@@ -30,16 +32,38 @@ func BuildSnapshot(state *GameState) Snapshot {
 		}
 	}
 
+	// Copiar jugadores para evitar race conditions
+	playersCopy := make(map[int]*Player, len(state.Players))
+	for id, player := range state.Players {
+		handCopy := make([]string, len(player.Hand))
+		copy(handCopy, player.Hand)
+		playersCopy[id] = &Player{
+			ID:        player.ID,
+			IsAI:      player.IsAI,
+			Hand:      handCopy,
+			DeckCount: player.DeckCount,
+			Connected: player.Connected,
+		}
+	}
+
+	// Determinar quién es el jugador actual del turno
+	currentPlayerTurn := state.HumanPlayerID
+	if state.AIPlayerID > 0 && state.TurnNumber%2 == 0 {
+		currentPlayerTurn = state.AIPlayerID
+	}
+
 	return Snapshot{
-		Type:             "snapshot",
-		Tick:             state.Tick,
-		Units:            unitsCopy,
-		CurrentPhase:     state.CurrentPhase,
-		TurnNumber:       state.TurnNumber,
-		HumanPlayerID:    state.HumanPlayerID,
-		AIPlayerID:       state.AIPlayerID,
-		HumanPlayerReady: state.HumanPlayerReady,
-		AIPlayerReady:    state.AIPlayerReady,
-		Config:           state.Config,
+		Type:              "snapshot",
+		Tick:              state.Tick,
+		Units:             unitsCopy,
+		Players:           playersCopy,
+		CurrentPhase:      state.CurrentPhase,
+		TurnNumber:        state.TurnNumber,
+		HumanPlayerID:     state.HumanPlayerID,
+		AIPlayerID:        state.AIPlayerID,
+		HumanPlayerReady:  state.HumanPlayerReady,
+		AIPlayerReady:     state.AIPlayerReady,
+		Config:            state.Config,
+		CurrentPlayerTurn: currentPlayerTurn,
 	}
 }
