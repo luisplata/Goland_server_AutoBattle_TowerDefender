@@ -18,8 +18,8 @@ function App() {
   const [selectedCard, setSelectedCard] = useState(null)
   const [gameOver, setGameOver] = useState(null) // { loserId, winnerId, reason }
 
-  const API_URL = 'http://localhost:7070'
-  const WS_URL = 'ws://localhost:7070/ws'
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:7070'
+  const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:7070/ws'
 
   // Limpiar selección cuando cambia el turno
   useEffect(() => {

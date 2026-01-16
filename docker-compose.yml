@@ -2,7 +2,11 @@ version: "3.9"
 
 services:
   autobattle:
-    build: .
+    build:
+      context: .
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://143.198.98.210:7070}
+        VITE_WS_URL: ${VITE_WS_URL:-ws://143.198.98.210:7070/ws}
     image: autobattle-server:latest
     ports:
       - "7070:7070"

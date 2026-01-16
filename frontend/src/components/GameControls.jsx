@@ -14,13 +14,15 @@ export default function GameControls({ state, playerId, onCommand, selectedTile,
   const [spawnY, setSpawnY] = useState('50')
   const [unitStats, setUnitStats] = useState({})
 
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:7070'
+
   // Cargar estadísticas de unidades al montar el componente
   useEffect(() => {
-    fetch('http://localhost:8080/unit-stats')
+    fetch(`${API_URL}/unit-stats`)
       .then(res => res.json())
       .then(data => setUnitStats(data))
       .catch(err => console.error('Error loading unit stats:', err))
-  }, [])
+  }, [API_URL])
 
   const currentPhase = state?.currentPhase
   const isBaseSelectionPhase = currentPhase === 'base_selection'

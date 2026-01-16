@@ -3,6 +3,15 @@
 # Build frontend assets
 FROM node:20-alpine AS frontend-builder
 WORKDIR /frontend
+
+# Accept build arguments for API URLs
+ARG VITE_API_URL=http://localhost:7070
+ARG VITE_WS_URL=ws://localhost:7070/ws
+
+# Set them as environment variables for the build
+ENV VITE_API_URL=${VITE_API_URL}
+ENV VITE_WS_URL=${VITE_WS_URL}
+
 COPY frontend/package.json ./
 RUN npm install
 COPY frontend/. ./
