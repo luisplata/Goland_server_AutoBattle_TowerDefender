@@ -3,6 +3,7 @@ package network
 import (
 	"encoding/json"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -18,6 +19,8 @@ type HttpServer struct {
 	manager *game.GameManager
 	wsHub   *WsHub
 }
+
+const playgameDistPath = "frontend/dist"
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
@@ -40,6 +43,17 @@ func enableCORS(w http.ResponseWriter) {
 }
 
 func (s *HttpServer) Start() {
+	// Static frontend compiled by Vite, served under /playgame
+	playgameFS := http.FileServer(http.Dir(playgameDistPath))
+	http.Handle("/playgame/", http.StripPrefix("/playgame/", playgameFS))
+	http.HandleFunc("/playgame", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/playgame" {
+			http.NotFound(w, r)
+			return
+		}
+		http.ServeFile(w, r, filepath.Join(playgameDistPath, "index.html"))
+	})
+
 	http.HandleFunc("/game/create", s.handleCreateGame)
 	http.HandleFunc("/game/join", s.handleJoin)
 	http.HandleFunc("/game/state", s.handleGameState)

@@ -1,4 +1,14 @@
-# Multi-stage build for Autobattle server
+# Multi-stage build for Autobattle server + frontend
+
+# Build frontend assets
+FROM node:20-alpine AS frontend-builder
+WORKDIR /frontend
+COPY frontend/package.json ./
+RUN npm install
+COPY frontend/. ./
+RUN npm run build
+
+# Build Go backend
 FROM golang:1.22.5-alpine AS builder
 WORKDIR /app
 
@@ -17,6 +27,8 @@ FROM gcr.io/distroless/base-debian12
 WORKDIR /app
 
 COPY --from=builder /bin/autobattle /app/autobattle
+COPY --from=frontend-builder /frontend/dist /app/frontend/dist
+COPY openapi.yml /app/openapi.yml
 
 EXPOSE 8080
 

@@ -4,6 +4,8 @@ import (
 	"container/heap"
 )
 
+const maxPathSearchSteps = MapWidth * MapHeight // allow full-map searches to avoid shoreline stalls
+
 // PathNode representa un nodo en la búsqueda A*
 type PathNode struct {
 	X      int
@@ -258,16 +260,20 @@ func (pf *PathFinder) reconstructPath(node *PathNode, startX, startY, endX, endY
 // GetNextStep retorna el siguiente paso en el camino
 // Si no hay camino, intenta movimiento directo (fallback)
 func (pf *PathFinder) GetNextStep(state *GameState, unit *UnitState, targetX, targetY int) (int, int, bool) {
-	// Intentar encontrar path (máximo 200 pasos de búsqueda)
-	path := pf.FindPath(state, unit, unit.X, unit.Y, targetX, targetY, 200)
+	goalX, goalY, ok := pf.selectGoalTile(state, unit, targetX, targetY)
+	if !ok {
+		return unit.X, unit.Y, false
+	}
+
+	path := pf.FindPath(state, unit, unit.X, unit.Y, goalX, goalY, maxPathSearchSteps)
 
 	// Si se encontró camino
 	if len(path) > 1 {
 		nextStep := path[1]
 		// Si el siguiente paso está bloqueado ahora (otro unit), invalidar cache y recomputar una vez
 		if !state.isTileAllowedForUnit(unit, nextStep.X, nextStep.Y) {
-			pf.InvalidatePath(unit.X, unit.Y, targetX, targetY)
-			path = pf.FindPath(state, unit, unit.X, unit.Y, targetX, targetY, 200)
+			pf.InvalidatePath(unit.X, unit.Y, goalX, goalY)
+			path = pf.FindPath(state, unit, unit.X, unit.Y, goalX, goalY, maxPathSearchSteps)
 			if len(path) > 1 {
 				nextStep = path[1]
 				if state.isTileAllowedForUnit(unit, nextStep.X, nextStep.Y) {
@@ -321,6 +327,59 @@ func (pf *PathFinder) GetNextStep(state *GameState, unit *UnitState, targetX, ta
 
 	// No hay movimiento posible
 	return unit.X, unit.Y, false
+}
+
+// selectGoalTile ajusta el destino para que sea un tile alcanzable: si el tile objetivo
+// no se puede pisar (agua para terrestres, ocupado, etc.), busca la mejor casilla
+// alrededor del objetivo dentro del rango de ataque.
+func (pf *PathFinder) selectGoalTile(state *GameState, unit *UnitState, targetX, targetY int) (int, int, bool) {
+	// Si el tile objetivo es pisable, úsalo directamente
+	if state.canUnitTypeEnter(unit.UnitType, unit.ID, targetX, targetY) {
+		return targetX, targetY, true
+	}
+
+	// Buscar casillas alcanzables dentro del rango de ataque (o 1 si es 0)
+	radius := unit.AttackRange
+	if radius < 1 {
+		radius = 1
+	}
+
+	bestFound := false
+	bestX, bestY := 0, 0
+	bestDistFromUnit := 1_000_000
+	bestDistToTarget := 1_000_000
+
+	for dy := -radius; dy <= radius; dy++ {
+		for dx := -radius; dx <= radius; dx++ {
+			if dx == 0 && dy == 0 {
+				continue
+			}
+			manToTarget := abs(dx) + abs(dy)
+			if manToTarget > radius {
+				continue
+			}
+
+			nx := targetX + dx
+			ny := targetY + dy
+			if !state.canUnitTypeEnter(unit.UnitType, unit.ID, nx, ny) {
+				continue
+			}
+
+			distFromUnit := abs(unit.X-nx) + abs(unit.Y-ny)
+			if !bestFound || distFromUnit < bestDistFromUnit || (distFromUnit == bestDistFromUnit && manToTarget < bestDistToTarget) {
+				bestFound = true
+				bestX, bestY = nx, ny
+				bestDistFromUnit = distFromUnit
+				bestDistToTarget = manToTarget
+			}
+		}
+	}
+
+	if bestFound {
+		return bestX, bestY, true
+	}
+
+	return targetX, targetY, false
 }
 
 // ClearCache limpia el cache de paths
