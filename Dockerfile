@@ -29,6 +29,7 @@ WORKDIR /app
 COPY --from=builder /bin/autobattle /app/autobattle
 COPY --from=frontend-builder /frontend/dist /app/frontend/dist
 COPY openapi.yml /app/openapi.yml
+COPY Readme.md /app/Readme.md
 
 EXPOSE 8080
 

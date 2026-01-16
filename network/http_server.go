@@ -391,11 +391,15 @@ func (s *HttpServer) handleReadme(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	// Leer el archivo README.md
-	content, err := ioutil.ReadFile("Readme.md")
+	content, err := ioutil.ReadFile("/app/Readme.md")
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("<h1>README not found</h1>"))
-		return
+		// Fallback a ruta relativa para desarrollo local
+		content, err = ioutil.ReadFile("Readme.md")
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("<h1>README not found</h1>"))
+			return
+		}
 	}
 
 	// Convertir markdown simple a HTML (muy básico)
