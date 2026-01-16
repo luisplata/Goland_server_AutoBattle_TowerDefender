@@ -365,6 +365,7 @@ func (s *GameSimulation) Produce() {
 
 // UpdateTargets actualiza el objetivo de unidades móviles hacia el enemigo más cercano
 // dentro de su rango de detección. Si no hay enemigos cercanos, establece la base enemiga como objetivo.
+// Si no hay enemigos vivos, se queda con el último target válido.
 func (s *GameSimulation) UpdateTargets() {
 	s.state.mu.Lock()
 	defer s.state.mu.Unlock()
@@ -409,6 +410,22 @@ func (s *GameSimulation) UpdateTargets() {
 				if enemyBase, ok := s.state.Units[enemyBaseID]; ok && enemyBase.HP > 0 {
 					unit.TargetX = enemyBase.X
 					unit.TargetY = enemyBase.Y
+				} else {
+					// Enemy base is dead, find any enemy unit alive
+					var fallbackTarget *UnitState
+					for _, candidate := range s.state.Units {
+						if candidate.PlayerID == unit.PlayerID {
+							continue
+						}
+						if candidate.HP > 0 {
+							fallbackTarget = candidate
+							break
+						}
+					}
+					if fallbackTarget != nil {
+						unit.TargetX = fallbackTarget.X
+						unit.TargetY = fallbackTarget.Y
+					}
 				}
 			}
 		}
@@ -422,17 +439,43 @@ func (s *GameSimulation) Move() {
 	for _, unit := range s.state.Units {
 		if !unit.CanMove {
 			unit.Status = "idle"
+			unit.BlockedTicks = 0
 			continue
 		}
 
 		if unit.X == unit.TargetX && unit.Y == unit.TargetY {
 			unit.Status = "idle"
+			unit.BlockedTicks = 0
 			continue
 		}
 
 		if s.state.Tick < unit.NextMoveTick {
 			unit.Status = "waiting"
 			continue
+		}
+
+		// Si la unidad puede atacar y su target está dentro del rango, NO moverse
+		if unit.AttackDamage > 0 && unit.AttackRange > 0 {
+			// Buscar si hay una unidad enemiga en la posición target
+			var targetUnit *UnitState
+			for _, candidate := range s.state.Units {
+				if candidate.X == unit.TargetX && candidate.Y == unit.TargetY && candidate.PlayerID != unit.PlayerID {
+					targetUnit = candidate
+					break
+				}
+			}
+
+			// Si encontramos el target y está dentro del rango de ataque, detenerse
+			if targetUnit != nil && targetUnit.HP > 0 {
+				dx := abs(unit.X - targetUnit.X)
+				dy := abs(unit.Y - targetUnit.Y)
+				dist := dx + dy // Manhattan distance
+				if dist <= unit.AttackRange {
+					unit.Status = "attacking"
+					unit.BlockedTicks = 0
+					continue // No moverse, solo atacar
+				}
+			}
 		}
 
 		// Usar A* pathfinding para obtener el siguiente paso
@@ -443,18 +486,20 @@ func (s *GameSimulation) Move() {
 			unit.Y = newY
 			unit.NextMoveTick = s.state.Tick + unit.MoveIntervalTicks
 			unit.Status = "moving"
+			unit.BlockedTicks = 0 // Reset blocked counter on successful move
 		} else {
 			unit.Status = "blocked"
+			unit.BlockedTicks++
+
+			// Si la unidad ha estado bloqueada demasiado tiempo, limpiar cache para intentar otra ruta
+			if unit.BlockedTicks > 5 {
+				s.pathFinder.InvalidatePath(unit.X, unit.Y, unit.TargetX, unit.TargetY)
+				unit.BlockedTicks = 0
+			}
 		}
 	}
 }
 
-func abs(v int) int {
-	if v < 0 {
-		return -v
-	}
-	return v
-}
 func (s *GameSimulation) Block() {}
 
 // Attack procesa ataques automáticos para unidades con daño y rango.

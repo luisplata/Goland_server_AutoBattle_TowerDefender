@@ -15,6 +15,7 @@ function App() {
   const [lastTurn, setLastTurn] = useState(null)
   const [selectedUnitId, setSelectedUnitId] = useState(null)
   const [selectedCard, setSelectedCard] = useState(null)
+  const [gameOver, setGameOver] = useState(null) // { loserId, winnerId, reason }
 
   const API_URL = 'http://localhost:8080'
   const WS_URL = 'ws://localhost:8080/ws'
@@ -26,6 +27,26 @@ function App() {
     }
     setLastTurn(gameState?.currentPlayerTurn)
   }, [gameState?.currentPlayerTurn])
+
+  // Detectar fin de juego según HP de bases
+  useEffect(() => {
+    if (!gameState || !gameState.units) return
+    if (gameOver) return
+
+    const units = gameState.units
+    const humanBase = units?.[gameState.humanBaseId]
+    const aiBase = units?.[gameState.aiBaseId]
+
+    const humanDead = !humanBase || (typeof humanBase.hp === 'number' && humanBase.hp <= 0)
+    const aiDead = !aiBase || (typeof aiBase.hp === 'number' && aiBase.hp <= 0)
+
+    if (humanDead || aiDead) {
+      const loserId = humanDead ? gameState.humanPlayerId : gameState.aiPlayerId
+      const winnerId = humanDead ? gameState.aiPlayerId : gameState.humanPlayerId
+      const reason = humanDead ? 'human_base_destroyed' : 'ai_base_destroyed'
+      setGameOver({ loserId, winnerId, reason })
+    }
+  }, [gameState, gameOver])
 
   // Crear juego
   const createGame = async () => {
@@ -188,6 +209,7 @@ function App() {
   // Enviar comando
   const sendCommand = async (command) => {
     if (!gameId || !playerId) return
+    if (gameOver) return
     try {
       await fetch(`${API_URL}/command/send`, {
         method: 'POST',
@@ -239,6 +261,20 @@ function App() {
           </div>
         ) : (
           <>
+            {gameOver && (
+              <div className="overlay">
+                <div className="overlay-content">
+                  <h2>{gameOver.loserId === playerId ? 'Derrota' : 'Victoria'}</h2>
+                  <p>
+                    {gameOver.reason === 'human_base_destroyed' && gameOver.loserId === playerId ? 'Tu base fue destruida.' : ''}
+                    {gameOver.reason === 'ai_base_destroyed' && gameOver.winnerId === playerId ? 'Has destruido la base enemiga.' : ''}
+                  </p>
+                  <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                    <button className="btn-primary" onClick={joinGame}>Nueva Partida</button>
+                  </div>
+                </div>
+              </div>
+            )}
             <CanvasMapViewer 
               gameMap={gameState?.map} 
               units={gameState?.units} 

@@ -44,6 +44,7 @@ func (s *HttpServer) Start() {
 	http.HandleFunc("/game/join", s.handleJoin)
 	http.HandleFunc("/game/state", s.handleGameState)
 	http.HandleFunc("/command/send", s.handleSendCommand)
+	http.HandleFunc("/unit-stats", s.handleUnitStats)
 	http.HandleFunc("/ws", s.handleWebSocket)
 	http.HandleFunc("/openapi.yml", s.handleOpenAPI)
 	http.HandleFunc("/docs", s.handleSwaggerUI)
@@ -282,4 +283,33 @@ func (s *HttpServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}()
+}
+
+func (s *HttpServer) handleUnitStats(w http.ResponseWriter, r *http.Request) {
+	enableCORS(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Retornar estadísticas de todos los tipos de unidades
+	unitTypes := []string{
+		game.TypeWarrior,
+		game.TypeTower,
+		game.TypeWall,
+		game.TypeLandGenerator,
+		game.TypeNavalGenerator,
+	}
+
+	stats := make(map[string]game.UnitStats)
+	for _, unitType := range unitTypes {
+		stats[unitType] = game.GetUnitStats(unitType)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
 }

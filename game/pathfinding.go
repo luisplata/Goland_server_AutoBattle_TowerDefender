@@ -223,6 +223,13 @@ func sign(v int) int {
 	return 0
 }
 
+func abs(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
 // nodeKey genera una clave única para un nodo
 func (pf *PathFinder) nodeKey(x, y int) string {
 	return string([]byte{
@@ -255,13 +262,13 @@ func (pf *PathFinder) GetNextStep(state *GameState, unit *UnitState, targetX, ta
 	path := pf.FindPath(state, unit, unit.X, unit.Y, targetX, targetY, 200)
 
 	// Si se encontró camino
-	if path != nil && len(path) > 1 {
+	if len(path) > 1 {
 		nextStep := path[1]
 		// Si el siguiente paso está bloqueado ahora (otro unit), invalidar cache y recomputar una vez
 		if !state.isTileAllowedForUnit(unit, nextStep.X, nextStep.Y) {
 			pf.InvalidatePath(unit.X, unit.Y, targetX, targetY)
 			path = pf.FindPath(state, unit, unit.X, unit.Y, targetX, targetY, 200)
-			if path != nil && len(path) > 1 {
+			if len(path) > 1 {
 				nextStep = path[1]
 				if state.isTileAllowedForUnit(unit, nextStep.X, nextStep.Y) {
 					return nextStep.X, nextStep.Y, true
@@ -272,16 +279,38 @@ func (pf *PathFinder) GetNextStep(state *GameState, unit *UnitState, targetX, ta
 		}
 	}
 
-	// Fallback: probar cuatro vecinos ordenados por heurística al objetivo
-	type cand struct{ x, y int }
+	// Fallback: probar todas las 8 direcciones ordenadas por heurística al objetivo
+	type cand struct {
+		x, y     int
+		distance int // Manhattan distance to target
+	}
 	dx := targetX - unit.X
 	dy := targetY - unit.Y
-	// Orden preferente: hacia el eje dominante, luego los demás
+
 	candidates := []cand{
-		{unit.X + sign(dx), unit.Y},
-		{unit.X, unit.Y + sign(dy)},
-		{unit.X + sign(dx), unit.Y + sign(dy)},
-		{unit.X - sign(dx), unit.Y - sign(dy)},
+		// Preferencia 1: hacia el eje dominante (2 direcciones ortogonales)
+		{unit.X + sign(dx), unit.Y, abs(targetX-(unit.X+sign(dx))) + abs(targetY-unit.Y)},
+		{unit.X, unit.Y + sign(dy), abs(targetX-unit.X) + abs(targetY-(unit.Y+sign(dy)))},
+		// Preferencia 2: diagonales hacia el objetivo
+		{unit.X + sign(dx), unit.Y + sign(dy), abs(targetX-(unit.X+sign(dx))) + abs(targetY-(unit.Y+sign(dy)))},
+		// Preferencia 3: direcciones ortogonales perpendiculares
+		{unit.X - sign(dx), unit.Y, abs(targetX-(unit.X-sign(dx))) + abs(targetY-unit.Y)},
+		{unit.X, unit.Y - sign(dy), abs(targetX-unit.X) + abs(targetY-(unit.Y-sign(dy)))},
+		// Preferencia 4: diagonal opuesta
+		{unit.X - sign(dx), unit.Y - sign(dy), abs(targetX-(unit.X-sign(dx))) + abs(targetY-(unit.Y-sign(dy)))},
+		// Preferencia 5: diagonal perpendicular 1
+		{unit.X + sign(dx), unit.Y - sign(dy), abs(targetX-(unit.X+sign(dx))) + abs(targetY-(unit.Y-sign(dy)))},
+		// Preferencia 6: diagonal perpendicular 2
+		{unit.X - sign(dx), unit.Y + sign(dy), abs(targetX-(unit.X-sign(dx))) + abs(targetY-(unit.Y+sign(dy)))},
+	}
+
+	// Ordenar por distancia al objetivo (heurística)
+	for i := 0; i < len(candidates); i++ {
+		for j := i + 1; j < len(candidates); j++ {
+			if candidates[j].distance < candidates[i].distance {
+				candidates[i], candidates[j] = candidates[j], candidates[i]
+			}
+		}
 	}
 
 	for _, c := range candidates {

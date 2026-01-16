@@ -36,7 +36,7 @@ type GameMap struct {
 	Tiles  [][]Tile `json:"tiles"`
 }
 
-func NewGameMap() *GameMap {
+func NewGameMap(seed int64) *GameMap {
 	gameMap := &GameMap{
 		Width:  MapWidth,
 		Height: MapHeight,
@@ -48,7 +48,7 @@ func NewGameMap() *GameMap {
 		gameMap.Tiles[y] = make([]Tile, MapWidth)
 		for x := 0; x < MapWidth; x++ {
 			// Generar valor de noise
-			noiseValue := perlinNoise(float64(x), float64(y))
+			noiseValue := perlinNoiseWithSeed(float64(x), float64(y), seed)
 
 			// Mapear noise a tipo de terreno
 			terrainID := TerrainGrass
@@ -77,8 +77,8 @@ func NewGameMap() *GameMap {
 	return gameMap
 }
 
-// Implementación simple de Perlin noise 2D
-func perlinNoise(x, y float64) float64 {
+// Implementación simple de Perlin noise 2D con seed
+func perlinNoiseWithSeed(x, y float64, seed int64) float64 {
 	// Escalar coordenadas
 	x *= noiseScale
 	y *= noiseScale
@@ -94,18 +94,23 @@ func perlinNoise(x, y float64) float64 {
 	sy := y - y0
 
 	// Gradientes en las esquinas
-	n0 := dotGridGradient(int(x0), int(y0), x, y)
-	n1 := dotGridGradient(int(x1), int(y0), x, y)
+	n0 := dotGridGradientWithSeed(int(x0), int(y0), x, y, seed)
+	n1 := dotGridGradientWithSeed(int(x1), int(y0), x, y, seed)
 	ix0 := interpolate(n0, n1, sx)
 
-	n0 = dotGridGradient(int(x0), int(y1), x, y)
-	n1 = dotGridGradient(int(x1), int(y1), x, y)
+	n0 = dotGridGradientWithSeed(int(x0), int(y1), x, y, seed)
+	n1 = dotGridGradientWithSeed(int(x1), int(y1), x, y, seed)
 	ix1 := interpolate(n0, n1, sx)
 
 	value := interpolate(ix0, ix1, sy)
 
 	// Normalizar a [0, 1]
 	return (value + 1) / 2
+}
+
+// Implementación simple de Perlin noise 2D (versión antigua, sin seed)
+func perlinNoise(x, y float64) float64 {
+	return perlinNoiseWithSeed(x, y, 0)
 }
 
 func dotGridGradient(ix, iy int, x, y float64) float64 {
@@ -121,9 +126,29 @@ func dotGridGradient(ix, iy int, x, y float64) float64 {
 	return dx*gx + dy*gy
 }
 
+func dotGridGradientWithSeed(ix, iy int, x, y float64, seed int64) float64 {
+	// Vector gradiente pseudoaleatorio con seed
+	angle := pseudoRandomWithSeed(ix, iy, seed) * 2 * math.Pi
+	gx := math.Cos(angle)
+	gy := math.Sin(angle)
+
+	// Vector distancia
+	dx := x - float64(ix)
+	dy := y - float64(iy)
+
+	return dx*gx + dy*gy
+}
+
 func pseudoRandom(x, y int) float64 {
 	// Hash simple para generar valor pseudoaleatorio
 	n := x*374761393 + y*668265263
+	n = (n ^ (n >> 13)) * 1274126177
+	return float64(n&0x7fffffff) / 2147483648.0
+}
+
+func pseudoRandomWithSeed(x, y int, seed int64) float64 {
+	// Hash simple para generar valor pseudoaleatorio con seed
+	n := int64(x)*374761393 + int64(y)*668265263 + seed
 	n = (n ^ (n >> 13)) * 1274126177
 	return float64(n&0x7fffffff) / 2147483648.0
 }

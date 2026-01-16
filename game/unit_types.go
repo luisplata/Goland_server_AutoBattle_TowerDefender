@@ -83,9 +83,9 @@ func GetUnitStats(unitType string) UnitStats {
 			Category:            CategoryStructure,
 			HP:                  500,
 			CanMove:             false,
-			DetectionRange:      6,
+			DetectionRange:      30, // Mayor que AttackRange para detectar enemigos
 			AttackDamage:        25,
-			AttackRange:         25, // 5 tiles de rango
+			AttackRange:         25, // 25 tiles de rango
 			AttackIntervalTicks: 10, // Ataca cada 2 segundos
 			AttackDPS:           12.5,
 			IsBlocker:           true,

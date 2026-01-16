@@ -12,13 +12,27 @@ const CARD_EMOJIS = {
 export default function GameControls({ state, playerId, onCommand, selectedTile, gameMap, onClearSelection, selectedUnitId, selectedCard, onSelectCard }) {
   const [spawnX, setSpawnX] = useState('50')
   const [spawnY, setSpawnY] = useState('50')
-  const [moveX, setMoveX] = useState('51')
-  const [moveY, setMoveY] = useState('50')
+  const [unitStats, setUnitStats] = useState({})
+
+  // Cargar estadísticas de unidades al montar el componente
+  useEffect(() => {
+    fetch('http://localhost:8080/unit-stats')
+      .then(res => res.json())
+      .then(data => setUnitStats(data))
+      .catch(err => console.error('Error loading unit stats:', err))
+  }, [])
 
   const currentPhase = state?.currentPhase
   const isBaseSelectionPhase = currentPhase === 'base_selection'
   const hasPlacedBase = playerId === state?.humanPlayerId ? (state?.humanBaseId > 0) : (state?.aiBaseId > 0)
   const canPlayCards = currentPhase === 'preparation'
+
+  // Limpiar carta seleccionada cuando sale de la fase de preparation
+  useEffect(() => {
+    if (!canPlayCards && selectedCard) {
+      onSelectCard(null)
+    }
+  }, [canPlayCards, selectedCard, onSelectCard])
 
   // Obtener la mano del jugador actual
   const myPlayer = state?.players?.[playerId]
@@ -31,7 +45,7 @@ export default function GameControls({ state, playerId, onCommand, selectedTile,
 
   // Permitir acciones simultáneas en preparation: ambos pueden actuar
   const isMyTurn = currentPhase === 'preparation' || state?.currentPlayerTurn === playerId
-  const showEndTurn = currentPhase !== 'battle'
+  const showEndTurn = currentPhase === 'preparation'
 
   // Área controlada (para validar estructuras en el cliente)
   const controlledArea = (() => {
@@ -99,22 +113,6 @@ export default function GameControls({ state, playerId, onCommand, selectedTile,
     if (onClearSelection) {
       onClearSelection()
     }
-  }
-
-  const handleMoveUnit = () => {
-    if (!selectedUnitId || !moveX || !moveY) {
-      alert('Selecciona una unidad y coordenadas')
-      return
-    }
-
-    onCommand({
-      type: 'move_unit',
-      data: {
-        unitId: parseInt(selectedUnitId),
-        x: parseInt(moveX),
-        y: parseInt(moveY)
-      }
-    })
   }
 
   const handleEndTurn = () => {
@@ -213,20 +211,30 @@ export default function GameControls({ state, playerId, onCommand, selectedTile,
           {myHand.length === 0 ? (
             <div className="empty-hand">No cards in hand</div>
           ) : (
-            myHand.map((card, index) => (
-              <div
-                key={index}
-                className={`card ${selectedCard === card ? 'selected' : ''}`}
-                onClick={() => {
-                  if (!canPlayCards || !isMyTurn) return
-                  onSelectCard(selectedCard === card ? null : card)
-                }}
-                style={{ pointerEvents: canPlayCards && isMyTurn ? 'auto' : 'none', opacity: canPlayCards && isMyTurn ? 1 : 0.5 }}
-              >
-                <div className="card-emoji">{CARD_EMOJIS[card] || '?'}</div>
-                <div className="card-name">{card}</div>
-              </div>
-            ))
+            myHand.map((card, index) => {
+              const stats = unitStats[card]
+              return (
+                <div
+                  key={index}
+                  className={`card ${selectedCard === card ? 'selected' : ''}`}
+                  onClick={() => {
+                    if (!canPlayCards || !isMyTurn) return
+                    onSelectCard(selectedCard === card ? null : card)
+                  }}
+                  style={{ pointerEvents: canPlayCards && isMyTurn ? 'auto' : 'none', opacity: canPlayCards && isMyTurn ? 1 : 0.5 }}
+                  title={stats ? `HP: ${stats.hp} | DMG: ${stats.attackDamage} | Range: ${stats.attackRange}` : ''}
+                >
+                  <div className="card-emoji">{CARD_EMOJIS[card] || '?'}</div>
+                  <div className="card-name">{card}</div>
+                  {stats && (
+                    <div className="card-stats">
+                      <div className="stat">❤️ {stats.hp}</div>
+                      {stats.attackDamage > 0 && <div className="stat">⚔️ {stats.attackDamage}</div>}
+                    </div>
+                  )}
+                </div>
+              )
+            })
           )}
         </div>
       </div>
@@ -283,58 +291,6 @@ export default function GameControls({ state, playerId, onCommand, selectedTile,
           <div className="help-text" style={{ color: '#ff9800' }}>Cards can only be played in preparation phase</div>
         </div>
       )}
-
-      {/* MOVE UNIT SECTION */}
-      <div className="controls-section">
-        <h3>⚡ Move Unit</h3>
-        {myUnits.length === 0 ? (
-          <div className="empty-units">No units to move</div>
-        ) : (
-          <>
-            {selectedUnitId ? (
-              <div className="selected-unit-info">
-                <span>Selected: {myUnits.find(u => u.id === selectedUnitId)?.unitType || 'Unknown'} (ID: {selectedUnitId})</span>
-                <span className="help-text">Click unit in "My Units" to change selection</span>
-              </div>
-            ) : (
-              <div className="help-text">👆 Click a unit in "My Units" section above to select it</div>
-            )}
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>Target X:</label>
-                <input 
-                  type="number" 
-                  value={moveX}
-                  onChange={(e) => setMoveX(e.target.value)}
-                  disabled={!isMyTurn}
-                  min="0"
-                  max="100"
-                />
-              </div>
-              <div className="form-group">
-                <label>Target Y:</label>
-                <input 
-                  type="number" 
-                  value={moveY}
-                  onChange={(e) => setMoveY(e.target.value)}
-                  disabled={!isMyTurn}
-                  min="0"
-                  max="100"
-                />
-              </div>
-            </div>
-
-            <button 
-              onClick={handleMoveUnit}
-              className="btn-action"
-              disabled={!isMyTurn || !selectedUnitId}
-            >
-              Move Unit
-            </button>
-          </>
-        )}
-      </div>
 
       <div className="info-box">
         <h3>ℹ️ Card Info</h3>

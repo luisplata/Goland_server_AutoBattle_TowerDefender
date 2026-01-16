@@ -100,3 +100,34 @@ header h1 {
     flex-direction: column;
   }
 }
+
+/* Game Over Overlay */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.overlay-content {
+  background: rgba(30, 30, 46, 0.9);
+  border: 2px solid #00ff88;
+  border-radius: 10px;
+  padding: 2rem 3rem;
+  text-align: center;
+  box-shadow: 0 0 30px rgba(0, 255, 136, 0.5);
+}
+
+.overlay-content h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: 2rem;
+  color: #00ff88;
+}
+
+.overlay-content p {
+  opacity: 0.9;
+}

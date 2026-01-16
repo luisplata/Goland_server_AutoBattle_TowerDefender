@@ -128,6 +128,7 @@ type UnitState struct {
 	MoveIntervalTicks int  `json:"-"`
 	NextMoveTick      int  `json:"-"`
 	CanMove           bool `json:"-"`
+	BlockedTicks      int  `json:"-"` // Contador de ticks bloqueado (para detectar deadlocks)
 
 	// Detection
 	DetectionRange int `json:"detectionRange"`
@@ -154,12 +155,17 @@ type UnitState struct {
 }
 
 func NewGameState() *GameState {
+	// Usar tiempo actual como seed por defecto
+	return NewGameStateWithSeed(time.Now().UnixNano())
+}
+
+func NewGameStateWithSeed(seed int64) *GameState {
 	return &GameState{
 		Players:      make(map[int]*Player),
 		nextPlayerID: 1,
 		nextUnitID:   1,
 		Units:        make(map[int]*UnitState),
-		Map:          NewGameMap(),
+		Map:          NewGameMap(seed),
 		CurrentPhase: PhaseBaseSelection,   // Empezar en fase de selección de base
 		TurnNumber:   0,                    // El turno 1 empieza después de colocar bases
 		Config:       DefaultPhaseConfig(), // Usar configuración por defecto
