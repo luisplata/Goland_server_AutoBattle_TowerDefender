@@ -317,11 +317,22 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
 
         // Unit body - más borde para seleccionada
         ctx.fillStyle = color
+        ctx.beginPath()
+        ctx.arc(cx, cy, r, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Franja amarilla fija para todas las unidades
+        ctx.strokeStyle = '#ffd700'
+        ctx.lineWidth = 0.08 * tileSize
+        ctx.beginPath()
+        ctx.arc(cx, cy, r * 1.05, 0, Math.PI * 2)
+        ctx.stroke()
+
+        // Borde exterior (amarillo si está seleccionada, blanco si no)
         ctx.strokeStyle = isSelected ? '#ffff00' : '#fff'
         ctx.lineWidth = isSelected ? 0.12 * tileSize : 0.05 * tileSize
         ctx.beginPath()
         ctx.arc(cx, cy, r, 0, Math.PI * 2)
-        ctx.fill()
         ctx.stroke()
 
         // HP bar
@@ -430,6 +441,54 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
           <span>Click a tile to select it</span>
         )}
       </div>
+
+      {selectedUnitId && units && units[selectedUnitId] && (
+        <div style={{
+          marginTop: '0.6rem',
+          padding: '0.6rem 0.8rem',
+          background: 'rgba(0,0,0,0.25)',
+          border: '1px solid #00ff88',
+          borderRadius: 6,
+          display: 'inline-block'
+        }}>
+          {(() => {
+            const u = units[selectedUnitId]
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: 'auto auto', gap: '0.35rem 1rem', alignItems: 'center' }}>
+                <div style={{ gridColumn: '1 / -1', fontWeight: 'bold' }}>
+                  Unidad: {u.unitType} {u.playerId === playerId ? '(Aliada)' : '(Enemiga)'}
+                </div>
+                <div>HP:</div>
+                <div>{u.hp}/{u.maxHp}</div>
+                <div>DMG:</div>
+                <div>{u.attackDamage}</div>
+                <div>Rango Ataque:</div>
+                <div>{u.attackRange}</div>
+                <div>Rango Detección:</div>
+                <div>{u.detectionRange}</div>
+                {u.spawnedById && units[u.spawnedById] && (
+                  <>
+                    <div>Generada por:</div>
+                    <div>{units[u.spawnedById].unitType}</div>
+                  </>
+                )}
+                {u.generatedUnitType && (
+                  <>
+                    <div>Genera:</div>
+                    <div>{u.generatedUnitType}</div>
+                  </>
+                )}
+                {u.status && (
+                  <>
+                    <div>Estado:</div>
+                    <div>{u.status}</div>
+                  </>
+                )}
+              </div>
+            )
+          })()}
+        </div>
+      )}
     </div>
   )
 }

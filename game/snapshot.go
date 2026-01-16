@@ -42,6 +42,7 @@ func BuildSnapshot(state *GameState) Snapshot {
 			Category:          unit.Category,
 			IsGenerator:       unit.IsGenerator,
 			GeneratedUnitType: unit.GeneratedUnitType,
+			SpawnedByID:       unit.SpawnedByID,
 		}
 	}
 

@@ -155,6 +155,9 @@ type UnitState struct {
 
 	// Build Range - área que esta estructura expande
 	BuildRange int `json:"buildRange"` // Radio de construcción que proporciona
+
+	// Spawn origin (id del generador/base que creó esta unidad)
+	SpawnedByID int `json:"spawnedById,omitempty"`
 }
 
 // GameEndInfo mantiene el estado de fin de juego pendiente
@@ -285,10 +288,9 @@ func (g *GameState) AddPlayer() *Player {
 
 	// Dibujar mano inicial (cantidad según config)
 	for i := 0; i < g.Config.InitialCardsPerHand && len(player.Deck) > 0; i++ {
-		if card, ok := g.drawCardLocked(player); ok {
-			player.Hand = append(player.Hand, card)
-		}
+		g.drawCardLocked(player) // drawCardLocked ya añade a Hand
 	}
+	g.HandUpdatedPlayers = append(g.HandUpdatedPlayers, player.ID)
 
 	g.Players[player.ID] = player
 
@@ -308,10 +310,9 @@ func (g *GameState) AddPlayer() *Player {
 
 		// Dibujar mano inicial para IA (cantidad según config)
 		for i := 0; i < g.Config.InitialCardsPerHand && len(aiPlayer.Deck) > 0; i++ {
-			if card, ok := g.drawCardLocked(aiPlayer); ok {
-				aiPlayer.Hand = append(aiPlayer.Hand, card)
-			}
+			g.drawCardLocked(aiPlayer) // drawCardLocked ya añade a Hand
 		}
+		g.HandUpdatedPlayers = append(g.HandUpdatedPlayers, aiPlayer.ID)
 
 		g.Players[aiPlayer.ID] = aiPlayer
 		g.AIPlayerID = aiPlayer.ID

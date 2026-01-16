@@ -365,6 +365,8 @@ func (s *GameSimulation) Produce() {
 	for _, job := range spawns {
 		spawnedUnit := s.state.SpawnUnit(job.playerID, job.unitType, job.x, job.y)
 		if spawnedUnit != nil {
+			// Marcar origen de spawn (generador/base)
+			spawnedUnit.SpawnedByID = job.genID
 			slog.Info("Generator spawned unit", "tick", currentTick, "generatorId", job.genID, "unitId", spawnedUnit.ID, "type", job.unitType, "x", job.x, "y", job.y)
 		} else {
 			slog.Warn("Generator failed to spawn unit", "tick", currentTick, "generatorId", job.genID, "type", job.unitType, "x", job.x, "y", job.y)

@@ -293,6 +293,23 @@ export default function MapViewer({ gameMap, units, selectedTile, onSelectTile, 
                 cy={cy}
                 r={0.4}
                 fill={color}
+              />
+              {/* Franja amarilla fija para todas las unidades */}
+              <circle
+                cx={cx}
+                cy={cy}
+                r={0.42}
+                fill="none"
+                stroke="#ffd700"
+                strokeWidth="0.08"
+                opacity={0.95}
+              />
+              {/* Borde blanco para contraste */}
+              <circle
+                cx={cx}
+                cy={cy}
+                r={0.4}
+                fill="none"
                 stroke="white"
                 strokeWidth="0.05"
               />
