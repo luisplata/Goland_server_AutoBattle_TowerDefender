@@ -1,0 +1,82 @@
+.unit-legend {
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 12px 0;
+  color: #eee;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.unit-legend h3 {
+  margin: 0 0 12px 0;
+  color: #fff;
+  font-size: 1.1em;
+  text-align: center;
+}
+
+.legend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.legend-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.legend-emoji {
+  font-size: 1.8em;
+  min-width: 40px;
+  text-align: center;
+  line-height: 1;
+}
+
+.legend-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.legend-name {
+  font-weight: 600;
+  color: #4CAF50;
+  font-size: 0.95em;
+}
+
+.legend-desc {
+  font-size: 0.85em;
+  color: #bbb;
+}
+
+/* Scrollbar styling */
+.unit-legend::-webkit-scrollbar {
+  width: 6px;
+}
+
+.unit-legend::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 3px;
+}
+
+.unit-legend::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
+.unit-legend::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import GameBoard from './components/GameBoard'
 import GameControls from './components/GameControls'
 import CanvasMapViewer from './components/CanvasMapViewer'
+import UnitLegend from './components/UnitLegend'
 import './App.css'
 
 function App() {
@@ -347,6 +348,7 @@ function App() {
                 </div>
               </div>
             )}
+            <UnitLegend />
             <CanvasMapViewer 
               gameMap={gameState?.map} 
               units={gameState?.units} 
