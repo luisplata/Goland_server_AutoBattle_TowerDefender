@@ -2,9 +2,11 @@ package network
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"autobattle-server/command"
@@ -62,6 +64,8 @@ func (s *HttpServer) Start() {
 	http.HandleFunc("/ws", s.handleWebSocket)
 	http.HandleFunc("/openapi.yml", s.handleOpenAPI)
 	http.HandleFunc("/docs", s.handleSwaggerUI)
+	http.HandleFunc("/api/docs", s.handleDocIndex)
+	http.HandleFunc("/api/readme", s.handleReadme)
 
 	http.ListenAndServe(":7070", nil)
 }
@@ -326,4 +330,142 @@ func (s *HttpServer) handleUnitStats(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(stats)
+}
+
+// handleDocIndex sirve una página de índice de documentación
+func (s *HttpServer) handleDocIndex(w http.ResponseWriter, r *http.Request) {
+	enableCORS(w)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte(`<!DOCTYPE html>
+<html>
+  <head>
+    <title>AutoBattle API Documentation</title>
+    <style>
+      body { font-family: Arial, sans-serif; background: #1a1a1a; color: #eee; padding: 40px; }
+      .container { max-width: 800px; margin: 0 auto; }
+      h1 { color: #4CAF50; }
+      .doc-link { display: block; padding: 10px; margin: 10px 0; background: #333; border: 1px solid #555; border-radius: 4px; text-decoration: none; color: #4CAF50; transition: 0.2s; }
+      .doc-link:hover { background: #444; border-color: #4CAF50; }
+      .description { color: #aaa; font-size: 0.9em; margin-top: 5px; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🎮 AutoBattle API Documentation</h1>
+      <p>Welcome to the AutoBattle server API documentation.</p>
+      
+      <h2>Documentation Links</h2>
+      <a href="/docs" class="doc-link">
+        📊 Swagger UI (Interactive API)
+        <div class="description">Interactive API explorer with all endpoints and schemas</div>
+      </a>
+      
+      <a href="/openapi.yml" class="doc-link">
+        📄 OpenAPI Specification (YAML)
+        <div class="description">Raw OpenAPI 3.0 specification file</div>
+      </a>
+      
+      <a href="/api/readme" class="doc-link">
+        📖 README
+        <div class="description">Project overview and getting started guide</div>
+      </a>
+      
+      <h2>Quick Links</h2>
+      <a href="/playgame" class="doc-link">
+        🕹️ Play Game
+        <div class="description">Launch the game interface</div>
+      </a>
+      
+      <a href="/unit-stats" class="doc-link">
+        ⚙️ Unit Statistics (JSON)
+        <div class="description">Get all unit types and their stats</div>
+      </a>
+    </div>
+  </body>
+</html>`))
+}
+
+// handleReadme sirve el README como HTML
+func (s *HttpServer) handleReadme(w http.ResponseWriter, r *http.Request) {
+	enableCORS(w)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	// Leer el archivo README.md
+	content, err := ioutil.ReadFile("Readme.md")
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("<h1>README not found</h1>"))
+		return
+	}
+
+	// Convertir markdown simple a HTML (muy básico)
+	html := `<!DOCTYPE html>
+<html>
+  <head>
+    <title>AutoBattle README</title>
+    <style>
+      body { font-family: Arial, sans-serif; background: #1a1a1a; color: #eee; padding: 40px; line-height: 1.6; }
+      .container { max-width: 900px; margin: 0 auto; }
+      h1 { color: #4CAF50; border-bottom: 2px solid #4CAF50; padding-bottom: 10px; }
+      h2, h3 { color: #4CAF50; margin-top: 20px; }
+      code { background: #333; padding: 2px 6px; border-radius: 3px; color: #4CAF50; }
+      pre { background: #222; padding: 15px; border-left: 3px solid #4CAF50; overflow-x: auto; }
+      a { color: #4CAF50; }
+      a:hover { text-decoration: underline; }
+      .back-link { margin-bottom: 20px; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="back-link"><a href="/api/docs">← Back to Documentation</a></div>
+      <div class="readme">` + markdownToHTML(string(content)) + `</div>
+    </div>
+  </body>
+</html>`
+	w.Write([]byte(html))
+}
+
+// markdownToHTML hace una conversión básica de markdown a HTML
+func markdownToHTML(md string) string {
+	lines := strings.Split(md, "\n")
+	var result strings.Builder
+	inCode := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Code blocks
+		if strings.HasPrefix(trimmed, "```") {
+			if inCode {
+				result.WriteString("</pre>")
+				inCode = false
+			} else {
+				result.WriteString("<pre><code>")
+				inCode = true
+			}
+			continue
+		}
+
+		if inCode {
+			result.WriteString(line + "\n")
+			continue
+		}
+
+		// Headers
+		if strings.HasPrefix(line, "# ") {
+			result.WriteString("<h1>" + strings.TrimPrefix(line, "# ") + "</h1>\n")
+		} else if strings.HasPrefix(line, "## ") {
+			result.WriteString("<h2>" + strings.TrimPrefix(line, "## ") + "</h2>\n")
+		} else if strings.HasPrefix(line, "### ") {
+			result.WriteString("<h3>" + strings.TrimPrefix(line, "### ") + "</h3>\n")
+		} else if trimmed != "" {
+			result.WriteString("<p>" + trimmed + "</p>\n")
+		}
+	}
+
+	if inCode {
+		result.WriteString("</pre>")
+	}
+
+	return result.String()
 }
