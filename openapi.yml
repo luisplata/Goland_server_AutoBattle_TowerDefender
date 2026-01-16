@@ -1,16 +1,18 @@
 openapi: 3.0.3
 info:
   title: Autobattle Server API
-  version: 1.0.0
+  version: 1.1.0
   description: |
-    Endpoints para crear/join juegos, consultar estado y enviar comandos.
+    API para crear partidas, unirse, consultar estado y enviar comandos.
+    El juego es por fases (base_selection → turn_start → preparation → battle → turn_end) y envía snapshots por WebSocket cada tick.
+    Eventos WS: `snapshot` (estado completo), `phase_changed`, `hand_updated`.
 servers:
   - url: http://localhost:8080
 paths:
   /game/create:
     post:
       summary: Crear un nuevo juego
-      description: Crea un juego nuevo. Opcionalmente acepta configuración de fases.
+      description: Crea un juego nuevo. Opcionalmente acepta configuración de fases y timings.
       requestBody:
         required: false
         content:
@@ -71,7 +73,8 @@ paths:
   /command/send:
     post:
       summary: Enviar un comando al juego
-      description: Actualmente soporta spawn_unit, move_unit y ready.
+      description: |
+        Soporta `place_base` (solo en base_selection), `spawn_unit`, `move_unit`, `ready` (marcar listo), `confirm_end` (confirmar fin) y `end_turn` (legacy → tratado como ready).
       requestBody:
         required: true
         content:
@@ -89,19 +92,38 @@ paths:
     get:
       summary: WebSocket para actualizaciones de juego
       description: |
-        Conectar con query param `gameId`. Recibirás mensajes de tipo:
-        - `update` (snapshot/delta)
-        - `phase_changed` (cuando cambia la fase)
-        - `hand_updated` (cuando la mano de un jugador cambia por robo o consumo de carta)
+        Conectar con `gameId` y opcional `playerId` (para tracking de conexión y timeouts).
+        Mensajes enviados por el servidor:
+        - `snapshot`: estado completo del juego (emitido cada tick)
+        - `phase_changed`: evento al cambiar de fase
+        - `hand_updated`: la mano de un jugador cambió (robo/consumo de carta)
       parameters:
         - in: query
           name: gameId
           schema:
             type: integer
           required: true
+        - in: query
+          name: playerId
+          schema:
+            type: integer
+          required: false
       responses:
         '101':
           description: Upgrade a WebSocket
+  /unit-stats:
+    get:
+      summary: Obtener estadísticas base de unidades
+      description: Retorna el mapa de `unitType -> UnitStats` para poblar UI/validaciones.
+      responses:
+        '200':
+          description: Mapa de estadísticas de unidades
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: '#/components/schemas/UnitStats'
 components:
   schemas:
     PhaseConfig:
@@ -122,6 +144,15 @@ components:
         aiReadyDelay:
           type: integer
           example: 5
+        disconnectTimeoutSeconds:
+          type: integer
+          example: 30
+        cardsPerTurn:
+          type: integer
+          example: 1
+        initialCardsPerHand:
+          type: integer
+          example: 3
     Player:
       type: object
       properties:
@@ -137,6 +168,10 @@ components:
         deckCount:
           type: integer
           description: Cartas restantes en mazo
+        connected:
+          type: boolean
+        ready:
+          type: boolean
     Unit:
       type: object
       properties:
@@ -152,6 +187,14 @@ components:
           type: integer
         hp:
           type: integer
+        status:
+          type: string
+        targetId:
+          type: integer
+        buildRange:
+          type: integer
+        category:
+          type: string
     Snapshot:
       type: object
       properties:
@@ -168,6 +211,8 @@ components:
           type: object
           additionalProperties:
             $ref: '#/components/schemas/Player'
+        map:
+          $ref: '#/components/schemas/GameMap'
         currentPhase:
           type: string
         turnNumber:
@@ -182,6 +227,24 @@ components:
           type: boolean
         config:
           $ref: '#/components/schemas/PhaseConfig'
+        currentPlayerTurn:
+          type: integer
+          description: 0 en preparation; en otras fases indica el jugador activo
+        gameEnd:
+          $ref: '#/components/schemas/GameEndInfo'
+    GameEndInfo:
+      type: object
+      properties:
+        pending:
+          type: boolean
+        loserId:
+          type: integer
+        winnerId:
+          type: integer
+        reason:
+          type: string
+        confirmed:
+          type: boolean
     CommandPayload:
       type: object
       required: [gameId, playerId, type]
@@ -192,11 +255,12 @@ components:
           type: integer
         type:
           type: string
-          enum: [spawn_unit, move_unit, ready, end_turn]
+          enum: [place_base, spawn_unit, move_unit, ready, confirm_end, end_turn]
         data:
           oneOf:
             - $ref: '#/components/schemas/SpawnUnitData'
             - $ref: '#/components/schemas/MoveUnitData'
+            - $ref: '#/components/schemas/PlaceBaseData'
             - type: object
               nullable: true
     SpawnUnitData:
@@ -221,6 +285,14 @@ components:
           type: integer
         y:
           type: integer
+    PlaceBaseData:
+      type: object
+      required: [x, y]
+      properties:
+        x:
+          type: integer
+        y:
+          type: integer
     HandUpdateEvent:
       type: object
       description: Evento enviado por WS cuando la mano de un jugador cambia
@@ -235,4 +307,80 @@ components:
           items:
             type: string
         deckCount:
+          type: integer
+    PhaseChangeEvent:
+      type: object
+      description: Evento enviado por WS cuando cambia la fase del juego
+      properties:
+        type:
+          type: string
+          example: phase_changed
+        tick:
+          type: integer
+        previousPhase:
+          type: string
+        currentPhase:
+          type: string
+        turnNumber:
+          type: integer
+        humanPlayerId:
+          type: integer
+        aiPlayerId:
+          type: integer
+    UnitStats:
+      type: object
+      properties:
+        category:
+          type: string
+        hp:
+          type: integer
+        canMove:
+          type: boolean
+        moveIntervalTicks:
+          type: integer
+        detectionRange:
+          type: integer
+        attackDamage:
+          type: integer
+        attackRange:
+          type: integer
+        attackIntervalTicks:
+          type: integer
+        attackDps:
+          type: number
+        isGenerator:
+          type: boolean
+        generatedUnitType:
+          type: string
+        generationInterval:
+          type: integer
+        maxUnitsGenerated:
+          type: integer
+        isBlocker:
+          type: boolean
+        isTargetable:
+          type: boolean
+        buildRange:
+          type: integer
+    GameMap:
+      type: object
+      properties:
+        width:
+          type: integer
+        height:
+          type: integer
+        tiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tile'
+    Tile:
+      type: object
+      properties:
+        x:
+          type: integer
+        y:
+          type: integer
+        walkable:
+          type: boolean
+        terrainId:
           type: integer
