@@ -760,6 +760,25 @@ func (g *GameState) canUnitTypeEnter(unitType string, skipUnitID int, x, y int) 
 		if !tile.Walkable {
 			return false
 		}
+
+		// Regla específica: naval_generator debe estar ADYACENTE a agua
+		// (sobre tierra, pero con al menos un vecino cardinal de tipo agua)
+		if unitType == TypeNavalGenerator {
+			// Vecinos cardinales
+			neighbors := [][2]int{{x + 1, y}, {x - 1, y}, {x, y + 1}, {x, y - 1}}
+			adjacentWater := false
+			for _, n := range neighbors {
+				if nt, ok2 := g.Map.GetTile(n[0], n[1]); ok2 {
+					if nt.TerrainID == TerrainWater {
+						adjacentWater = true
+						break
+					}
+				}
+			}
+			if !adjacentWater {
+				return false
+			}
+		}
 	}
 
 	// Ocupación: no permitir dos unidades en el mismo tile y respetar bloqueadores
