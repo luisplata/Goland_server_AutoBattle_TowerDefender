@@ -7,34 +7,28 @@ const TERRAIN_COLORS = {
   2: '#1e5aa0', // Water
 }
 
-const COLOR_CONFIG = {
-  PLAYER_1_HUE: 200,
-  PLAYER_2_HUE: 0,
-  SATURATION: 100,
-  LIGHTNESS_MIN: 15,
-  LIGHTNESS_MAX: 85,
+// Emojis para cada tipo de unidad (igual que la leyenda)
+const UNIT_EMOJIS = {
+  main_base: '👑',
+  tower: '🏰',
+  wall: '🧱',
+  land_generator: '🏞️',
+  naval_generator: '🌊',
+  warrior: '⚔️',
+  land_soldier: '🗡️',
+  naval_ship: '⛵',
+  default: '❓',
 }
 
-const UNIT_TYPE_INTENSITIES = {
-  main_base: 0.0,
-  tower: 0.14,
-  wall: 0.28,
-  land_generator: 0.42,
-  naval_generator: 0.5,
-  warrior: 0.64,
-  land_soldier: 0.78,
-  naval_ship: 1.0,
+// Colores de fondo para los bandos
+const TEAM_COLORS = {
+  1: '#2196F3', // Azul para aliados (Player 1)
+  2: '#F44336', // Rojo para enemigos (Player 2)
 }
 
-const getUnitColorIntensity = (unitType) => UNIT_TYPE_INTENSITIES[unitType] ?? 0.5
+const getUnitEmoji = (unitType) => UNIT_EMOJIS[unitType] || UNIT_EMOJIS.default
 
-const getUnitColor = (playerId, unitType) => {
-  const hue = playerId === 1 ? COLOR_CONFIG.PLAYER_1_HUE : COLOR_CONFIG.PLAYER_2_HUE
-  const saturation = COLOR_CONFIG.SATURATION
-  const intensity = getUnitColorIntensity(unitType)
-  const lightness = COLOR_CONFIG.LIGHTNESS_MIN + intensity * (COLOR_CONFIG.LIGHTNESS_MAX - COLOR_CONFIG.LIGHTNESS_MIN)
-  return `hsl(${hue}, ${saturation}%, ${lightness}%)`
-}
+const getTeamColor = (playerId) => TEAM_COLORS[playerId] || '#666'
 
 export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelectTile, disableZoom = false, playerId, selectedCard }) {
   const [zoom, setZoom] = useState(3)
@@ -122,17 +116,24 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
     setZoom(oldZoom => {
       const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldZoom + delta))
       if (oldZoom === newZoom) return oldZoom
+      
+      // Calcular la posición del mundo antes del zoom
+      const worldXBefore = (mouseX - pan.x) / oldZoom
+      const worldYBefore = (mouseY - pan.y) / oldZoom
+      
+      // Calcular el nuevo pan para mantener el punto del mundo bajo el mouse
       setPan(prevPan => {
         let newPan = {
-          x: mouseX - (mouseX - prevPan.x) * (newZoom / oldZoom),
-          y: mouseY - (mouseY - prevPan.y) * (newZoom / oldZoom),
+          x: mouseX - worldXBefore * newZoom,
+          y: mouseY - worldYBefore * newZoom,
         }
         newPan = getClampedPan(newPan.x, newPan.y, newZoom)
         return newPan
       })
+      
       return newZoom
     })
-  }, [disableZoom])
+  }, [disableZoom, pan])
 
   // Zoom via buttons at center
   const handleZoomAtCenter = useCallback((delta) => {
@@ -142,20 +143,28 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
     const rect = container.getBoundingClientRect()
     const cx = rect.width / 2
     const cy = rect.height / 2
+    
     setZoom(oldZoom => {
       const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldZoom + delta))
       if (oldZoom === newZoom) return oldZoom
+      
+      // Calcular la posición del mundo antes del zoom
+      const worldXBefore = (cx - pan.x) / oldZoom
+      const worldYBefore = (cy - pan.y) / oldZoom
+      
+      // Calcular el nuevo pan para mantener el punto del mundo en el centro
       setPan(prevPan => {
         let newPan = {
-          x: cx - (cx - prevPan.x) * (newZoom / oldZoom),
-          y: cy - (cy - prevPan.y) * (newZoom / oldZoom),
+          x: cx - worldXBefore * newZoom,
+          y: cy - worldYBefore * newZoom,
         }
         newPan = getClampedPan(newPan.x, newPan.y, newZoom)
         return newPan
       })
+      
       return newZoom
     })
-  }, [disableZoom])
+  }, [disableZoom, pan])
 
   useEffect(() => {
     const container = containerRef.current
@@ -292,16 +301,17 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
     // Units
     if (units) {
       Object.values(units).forEach(unit => {
-        const color = getUnitColor(unit.playerId, unit.unitType)
+        const teamColor = getTeamColor(unit.playerId)
+        const emoji = getUnitEmoji(unit.unitType)
         const cx = (unit.x + 0.5) * tileSize
         const cy = (unit.y + 0.5) * tileSize
-        const r = 0.4 * tileSize
+        const r = 0.5 * tileSize
         const hpPercent = unit.maxHp ? unit.hp / unit.maxHp : 1
         const isSelected = unit.id === selectedUnitId
 
         // Detection Range (área de cambio de target)
         if (unit.detectionRange > 0) {
-          ctx.strokeStyle = isSelected ? '#ffff00' : '#888888'
+          ctx.strokeStyle = isSelected ? '#ffff00' : teamColor
           ctx.lineWidth = isSelected ? 0.08 * tileSize : 0.02 * tileSize
           ctx.setLineDash([0.3 * tileSize, 0.15 * tileSize])
           ctx.globalAlpha = isSelected ? 0.6 : 0.1
@@ -314,7 +324,7 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
 
         // Attack Range (área de ataque)
         if (unit.attackDamage > 0 && unit.attackRange > 0) {
-          ctx.strokeStyle = isSelected ? '#ff4444' : color
+          ctx.strokeStyle = isSelected ? '#ff4444' : teamColor
           ctx.lineWidth = isSelected ? 0.08 * tileSize : 0.02 * tileSize
           ctx.globalAlpha = isSelected ? 0.5 : 0.15
           ctx.beginPath()
@@ -336,33 +346,46 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
           ctx.globalAlpha = 1
         }
 
-        // Unit body - más borde para seleccionada
-        ctx.fillStyle = color
+        // Círculo de fondo con color del equipo
+        ctx.fillStyle = teamColor
+        ctx.globalAlpha = 0.9
         ctx.beginPath()
         ctx.arc(cx, cy, r, 0, Math.PI * 2)
         ctx.fill()
+        ctx.globalAlpha = 1
 
-        // Franja amarilla fija para todas las unidades
-        ctx.strokeStyle = '#ffd700'
-        ctx.lineWidth = 0.08 * tileSize
-        ctx.beginPath()
-        ctx.arc(cx, cy, r * 1.05, 0, Math.PI * 2)
-        ctx.stroke()
-
-        // Borde exterior (amarillo si está seleccionada, blanco si no)
+        // Borde del círculo (más grueso si está seleccionada)
         ctx.strokeStyle = isSelected ? '#ffff00' : '#fff'
-        ctx.lineWidth = isSelected ? 0.12 * tileSize : 0.05 * tileSize
+        ctx.lineWidth = isSelected ? 0.15 * tileSize : 0.08 * tileSize
         ctx.beginPath()
         ctx.arc(cx, cy, r, 0, Math.PI * 2)
         ctx.stroke()
 
+        // Dibujar emoji en el centro
+        ctx.save()
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.font = `${r * 1.4}px Arial`
+        ctx.fillStyle = '#fff'
+        ctx.strokeStyle = '#000'
+        ctx.lineWidth = 0.03 * tileSize
+        ctx.strokeText(emoji, cx, cy)
+        ctx.fillText(emoji, cx, cy)
+        ctx.restore()
+
         // HP bar
-        const barW = 0.6 * tileSize
-        const barH = 0.08 * tileSize
+        const barW = 0.8 * tileSize
+        const barH = 0.1 * tileSize
+        const barY = cy + r + 0.15 * tileSize
         ctx.fillStyle = '#1a1a1a'
-        ctx.fillRect(cx - barW / 2, cy - 0.7 * tileSize, barW, barH)
+        ctx.fillRect(cx - barW / 2, barY, barW, barH)
         ctx.fillStyle = hpPercent > 0.5 ? '#4CAF50' : hpPercent > 0.25 ? '#FF9800' : '#F44336'
-        ctx.fillRect(cx - barW / 2, cy - 0.7 * tileSize, barW * hpPercent, barH)
+        ctx.fillRect(cx - barW / 2, barY, barW * hpPercent, barH)
+        
+        // Borde de HP bar
+        ctx.strokeStyle = '#fff'
+        ctx.lineWidth = 0.02 * tileSize
+        ctx.strokeRect(cx - barW / 2, barY, barW, barH)
       })
     }
   }, [gameMap, units, controlledArea, isStructureCard, selectedTile, selectedUnitId, pan, zoom, tileSize])
@@ -431,22 +454,14 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
           <span>Water (Invalid)</span>
         </div>
         <div style={{ marginTop: '0.5rem', borderTop: '1px solid #666', paddingTop: '0.5rem' }}>
-          <div style={{ fontSize: '0.85rem', marginBottom: '0.3rem', fontWeight: 'bold' }}>Unit Colors:</div>
+          <div style={{ fontSize: '0.85rem', marginBottom: '0.3rem', fontWeight: 'bold' }}>Team Colors:</div>
           <div className="legend-item" style={{ fontSize: '0.8rem' }}>
-            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: getUnitColor(1, 'main_base'), border: '1px solid white' }}></div>
-            <span>Your Base</span>
+            <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: getTeamColor(1), border: '2px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px' }}>⚔️</div>
+            <span>Allies (Blue)</span>
           </div>
           <div className="legend-item" style={{ fontSize: '0.8rem' }}>
-            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: getUnitColor(1, 'warrior'), border: '1px solid white' }}></div>
-            <span>Your Warrior</span>
-          </div>
-          <div className="legend-item" style={{ fontSize: '0.8rem' }}>
-            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: getUnitColor(2, 'main_base'), border: '1px solid white' }}></div>
-            <span>Enemy Base</span>
-          </div>
-          <div className="legend-item" style={{ fontSize: '0.8rem' }}>
-            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: getUnitColor(2, 'warrior'), border: '1px solid white' }}></div>
-            <span>Enemy Warrior</span>
+            <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: getTeamColor(2), border: '2px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px' }}>⚔️</div>
+            <span>Enemies (Red)</span>
           </div>
         </div>
       </div>
