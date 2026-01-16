@@ -25,6 +25,8 @@ type PhaseConfig struct {
 	TurnEndDuration          int `json:"turnEndDuration"`          // Ticks para turn_end
 	AIReadyDelay             int `json:"aiReadyDelay"`             // Ticks que espera la IA para marcarse lista
 	DisconnectTimeoutSeconds int `json:"disconnectTimeoutSeconds"` // Segundos antes de terminar juego por desconexión
+	CardsPerTurn             int `json:"cardsPerTurn"`             // Cantidad de cartas a robar al inicio de cada turno
+	InitialCardsPerHand      int `json:"initialCardsPerHand"`      // Cantidad de cartas iniciales en la mano
 }
 
 // DefaultPhaseConfig retorna la configuración por defecto
@@ -36,6 +38,8 @@ func DefaultPhaseConfig() PhaseConfig {
 		TurnEndDuration:          15,  // ~3 segundos
 		AIReadyDelay:             5,   // ~1 segundo
 		DisconnectTimeoutSeconds: 30,  // 30 segundos de timeout
+		CardsPerTurn:             1,   // 1 carta al inicio de cada turno
+		InitialCardsPerHand:      3,   // 3 cartas iniciales en la mano
 	}
 }
 
@@ -219,8 +223,8 @@ func (g *GameState) AddPlayer() *Player {
 	shuffleCards(player.Deck)
 	player.DeckCount = len(player.Deck)
 
-	// Dibujar mano inicial (3 cartas)
-	for i := 0; i < 3 && len(player.Deck) > 0; i++ {
+	// Dibujar mano inicial (cantidad según config)
+	for i := 0; i < g.Config.InitialCardsPerHand && len(player.Deck) > 0; i++ {
 		if card, ok := g.drawCardLocked(player); ok {
 			player.Hand = append(player.Hand, card)
 		}
@@ -242,8 +246,8 @@ func (g *GameState) AddPlayer() *Player {
 		shuffleCards(aiPlayer.Deck)
 		aiPlayer.DeckCount = len(aiPlayer.Deck)
 
-		// Dibujar mano inicial para IA (3 cartas)
-		for i := 0; i < 3 && len(aiPlayer.Deck) > 0; i++ {
+		// Dibujar mano inicial para IA (cantidad según config)
+		for i := 0; i < g.Config.InitialCardsPerHand && len(aiPlayer.Deck) > 0; i++ {
 			if card, ok := g.drawCardLocked(aiPlayer); ok {
 				aiPlayer.Hand = append(aiPlayer.Hand, card)
 			}
@@ -341,13 +345,18 @@ func (g *GameState) ConsumeCardFromHand(playerID int, unitType string) bool {
 	return false
 }
 
-// drawForAllPlayersLocked roba una carta para cada jugador (requiere lock tomado).
-// Retorna lista de playerIDs que robaron carta.
+// drawForAllPlayersLocked roba cartas para cada jugador según CardsPerTurn (requiere lock tomado).
+// Retorna lista de playerIDs que robaron cartas.
 func (g *GameState) drawForAllPlayersLocked() []int {
 	updated := []int{}
 	for _, p := range g.Players {
-		if _, ok := g.drawCardLocked(p); ok {
-			updated = append(updated, p.ID)
+		for i := 0; i < g.Config.CardsPerTurn; i++ {
+			if _, ok := g.drawCardLocked(p); ok {
+				// Solo agregar el playerID una vez, aunque haya robado múltiples cartas
+				if i == 0 {
+					updated = append(updated, p.ID)
+				}
+			}
 		}
 	}
 	return updated

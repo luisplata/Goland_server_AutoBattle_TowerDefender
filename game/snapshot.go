@@ -49,12 +49,19 @@ func BuildSnapshot(state *GameState) Snapshot {
 	for id, player := range state.Players {
 		handCopy := make([]string, len(player.Hand))
 		copy(handCopy, player.Hand)
+		readyFlag := false
+		if id == state.HumanPlayerID {
+			readyFlag = state.HumanPlayerReady
+		} else if id == state.AIPlayerID {
+			readyFlag = state.AIPlayerReady
+		}
 		playersCopy[id] = &Player{
 			ID:        player.ID,
 			IsAI:      player.IsAI,
 			Hand:      handCopy,
 			DeckCount: player.DeckCount,
-			Connected: player.Connected,
+			Connected: player.Connected || player.IsAI, // AI siempre online
+			Ready:     readyFlag,
 		}
 	}
 

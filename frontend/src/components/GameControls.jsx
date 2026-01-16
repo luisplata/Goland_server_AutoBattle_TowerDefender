@@ -31,6 +31,34 @@ export default function GameControls({ state, playerId, onCommand, selectedTile,
 
   // Permitir acciones simultáneas en preparation: ambos pueden actuar
   const isMyTurn = currentPhase === 'preparation' || state?.currentPlayerTurn === playerId
+  const showEndTurn = currentPhase !== 'battle'
+
+  // Área controlada (para validar estructuras en el cliente)
+  const controlledArea = (() => {
+    if (!playerId || !state?.units || !selectedCard) return new Set()
+    const set = new Set()
+    Object.values(state.units).forEach(u => {
+      if (u.playerId !== playerId || !u.buildRange || u.buildRange <= 0 || u.hp <= 0) return
+      for (let dy = -u.buildRange; dy <= u.buildRange; dy++) {
+        for (let dx = -u.buildRange; dx <= u.buildRange; dx++) {
+          const manhattan = Math.abs(dx) + Math.abs(dy)
+          if (manhattan <= u.buildRange) {
+            const tx = u.x + dx
+            const ty = u.y + dy
+            if (tx >= 0 && tx < (gameMap?.width ?? 0) && ty >= 0 && ty < (gameMap?.height ?? 0)) {
+              set.add(`${tx},${ty}`)
+            }
+          }
+        }
+      }
+    })
+    return set
+  })()
+
+  const isStructureCard = selectedCard && ['tower', 'wall', 'land_generator', 'naval_generator'].includes(selectedCard)
+  const isTileControlled = selectedTile ? controlledArea.has(`${selectedTile.x},${selectedTile.y}`) : false
+  const isWalkable = selectedTile ? selectedTile.walkable : true
+  const isValidPlacement = isWalkable && (!isStructureCard || isTileControlled)
 
   // Sync spawn coordinates with selected tile from map
   useEffect(() => {
@@ -162,9 +190,11 @@ export default function GameControls({ state, playerId, onCommand, selectedTile,
         {isMyTurn ? (
           <div className="my-turn">
             <span>✅ Your Turn</span>
-            <button onClick={handleEndTurn} className="btn-end-turn">
-              End Turn
-            </button>
+            {showEndTurn && (
+              <button onClick={handleEndTurn} className="btn-end-turn">
+                End Turn
+              </button>
+            )}
           </div>
         ) : (
           <div className="opponent-turn">
@@ -234,13 +264,13 @@ export default function GameControls({ state, playerId, onCommand, selectedTile,
             <button 
               onClick={handleSpawnFromCard}
               className="btn-action btn-spawn"
-              disabled={!canPlayCards || !isMyTurn || (selectedTile && !selectedTile.walkable)}
+              disabled={!canPlayCards || !isMyTurn || !isValidPlacement}
             >
               {CARD_EMOJIS[selectedCard]} Spawn {selectedCard}
             </button>
             {selectedTile && (
               <span style={{ opacity: 0.8 }}>
-                {selectedTile.walkable ? '✅ Posición válida' : '❌ Posición inválida (agua)'}
+                {isValidPlacement ? '✅ Posición válida' : isStructureCard && !isTileControlled ? '❌ Fuera de área controlada' : '❌ Posición inválida (agua)'}
               </span>
             )}
           </div>
