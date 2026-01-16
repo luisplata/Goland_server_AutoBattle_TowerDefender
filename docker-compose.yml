@@ -5,5 +5,5 @@ services:
     build: .
     image: autobattle-server:latest
     ports:
-      - "8080:8080"
+      - "7070:7070"
     restart: unless-stopped

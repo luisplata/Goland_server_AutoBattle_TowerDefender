@@ -63,7 +63,7 @@ func (s *HttpServer) Start() {
 	http.HandleFunc("/openapi.yml", s.handleOpenAPI)
 	http.HandleFunc("/docs", s.handleSwaggerUI)
 
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(":7070", nil)
 }
 
 func (s *HttpServer) handleOpenAPI(w http.ResponseWriter, r *http.Request) {
