@@ -18,6 +18,7 @@ export default function GameControls({ state, playerId, onCommand, selectedTile,
   const currentPhase = state?.currentPhase
   const isBaseSelectionPhase = currentPhase === 'base_selection'
   const hasPlacedBase = playerId === state?.humanPlayerId ? (state?.humanBaseId > 0) : (state?.aiBaseId > 0)
+  const canPlayCards = currentPhase === 'preparation'
 
   // Obtener la mano del jugador actual
   const myPlayer = state?.players?.[playerId]
@@ -28,7 +29,8 @@ export default function GameControls({ state, playerId, onCommand, selectedTile,
     Object.values(state.units).filter(u => u.playerId === playerId) : 
     []
 
-  const isMyTurn = state?.currentPlayerTurn === playerId
+  // Permitir acciones simultáneas en preparation: ambos pueden actuar
+  const isMyTurn = currentPhase === 'preparation' || state?.currentPlayerTurn === playerId
 
   // Sync spawn coordinates with selected tile from map
   useEffect(() => {
@@ -174,6 +176,9 @@ export default function GameControls({ state, playerId, onCommand, selectedTile,
       {/* HAND SECTION */}
       <div className="controls-section hand-section">
         <h3>🎴 Hand ({myHand.length})</h3>
+        {!canPlayCards && (
+          <div className="help-text" style={{ color: '#ff9800' }}>Cards disabled outside preparation phase</div>
+        )}
         <div className="hand-grid">
           {myHand.length === 0 ? (
             <div className="empty-hand">No cards in hand</div>
@@ -182,8 +187,11 @@ export default function GameControls({ state, playerId, onCommand, selectedTile,
               <div
                 key={index}
                 className={`card ${selectedCard === card ? 'selected' : ''}`}
-                onClick={() => onSelectCard(selectedCard === card ? null : card)}
-                style={{ pointerEvents: isMyTurn ? 'auto' : 'none', opacity: isMyTurn ? 1 : 0.5 }}
+                onClick={() => {
+                  if (!canPlayCards || !isMyTurn) return
+                  onSelectCard(selectedCard === card ? null : card)
+                }}
+                style={{ pointerEvents: canPlayCards && isMyTurn ? 'auto' : 'none', opacity: canPlayCards && isMyTurn ? 1 : 0.5 }}
               >
                 <div className="card-emoji">{CARD_EMOJIS[card] || '?'}</div>
                 <div className="card-name">{card}</div>
@@ -194,7 +202,7 @@ export default function GameControls({ state, playerId, onCommand, selectedTile,
       </div>
 
       {/* SPAWN FROM CARD SECTION */}
-      {selectedCard && (
+      {selectedCard && canPlayCards && (
         <div className="controls-section spawn-section">
           <h3>📍 Spawn {selectedCard}</h3>
           <div className="form-row">
@@ -204,7 +212,7 @@ export default function GameControls({ state, playerId, onCommand, selectedTile,
                 type="number" 
                 value={spawnX}
                 onChange={(e) => setSpawnX(e.target.value)}
-                disabled={!isMyTurn}
+                disabled={!canPlayCards || !isMyTurn}
                 min="0"
                 max="100"
               />
@@ -215,7 +223,7 @@ export default function GameControls({ state, playerId, onCommand, selectedTile,
                 type="number" 
                 value={spawnY}
                 onChange={(e) => setSpawnY(e.target.value)}
-                disabled={!isMyTurn}
+                disabled={!canPlayCards || !isMyTurn}
                 min="0"
                 max="100"
               />
@@ -226,7 +234,7 @@ export default function GameControls({ state, playerId, onCommand, selectedTile,
             <button 
               onClick={handleSpawnFromCard}
               className="btn-action btn-spawn"
-              disabled={!isMyTurn || (selectedTile && !selectedTile.walkable)}
+              disabled={!canPlayCards || !isMyTurn || (selectedTile && !selectedTile.walkable)}
             >
               {CARD_EMOJIS[selectedCard]} Spawn {selectedCard}
             </button>
@@ -236,6 +244,13 @@ export default function GameControls({ state, playerId, onCommand, selectedTile,
               </span>
             )}
           </div>
+        </div>
+      )}
+
+      {selectedCard && !canPlayCards && (
+        <div className="controls-section spawn-section" style={{ opacity: 0.6 }}>
+          <h3>📍 Spawn {selectedCard}</h3>
+          <div className="help-text" style={{ color: '#ff9800' }}>Cards can only be played in preparation phase</div>
         </div>
       )}
 

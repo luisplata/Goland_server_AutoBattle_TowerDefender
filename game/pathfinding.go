@@ -212,6 +212,17 @@ func (pf *PathFinder) heuristic(x, y, goalX, goalY int) float64 {
 	return float64(dx + dy)
 }
 
+// sign retorna -1, 0, 1 según el valor
+func sign(v int) int {
+	if v > 0 {
+		return 1
+	}
+	if v < 0 {
+		return -1
+	}
+	return 0
+}
+
 // nodeKey genera una clave única para un nodo
 func (pf *PathFinder) nodeKey(x, y int) string {
 	return string([]byte{
@@ -240,50 +251,43 @@ func (pf *PathFinder) reconstructPath(node *PathNode, startX, startY, endX, endY
 // GetNextStep retorna el siguiente paso en el camino
 // Si no hay camino, intenta movimiento directo (fallback)
 func (pf *PathFinder) GetNextStep(state *GameState, unit *UnitState, targetX, targetY int) (int, int, bool) {
-	// Intentar encontrar path (máximo 100 pasos de búsqueda)
-	path := pf.FindPath(state, unit, unit.X, unit.Y, targetX, targetY, 100)
+	// Intentar encontrar path (máximo 200 pasos de búsqueda)
+	path := pf.FindPath(state, unit, unit.X, unit.Y, targetX, targetY, 200)
 
+	// Si se encontró camino
 	if path != nil && len(path) > 1 {
-		// Retornar el siguiente paso en el camino
 		nextStep := path[1]
-		return nextStep.X, nextStep.Y, true
+		// Si el siguiente paso está bloqueado ahora (otro unit), invalidar cache y recomputar una vez
+		if !state.isTileAllowedForUnit(unit, nextStep.X, nextStep.Y) {
+			pf.InvalidatePath(unit.X, unit.Y, targetX, targetY)
+			path = pf.FindPath(state, unit, unit.X, unit.Y, targetX, targetY, 200)
+			if path != nil && len(path) > 1 {
+				nextStep = path[1]
+				if state.isTileAllowedForUnit(unit, nextStep.X, nextStep.Y) {
+					return nextStep.X, nextStep.Y, true
+				}
+			}
+		} else {
+			return nextStep.X, nextStep.Y, true
+		}
 	}
 
-	// Fallback: intenta movimiento directo (Manhattan)
-	newX, newY := unit.X, unit.Y
+	// Fallback: probar cuatro vecinos ordenados por heurística al objetivo
+	type cand struct{ x, y int }
 	dx := targetX - unit.X
 	dy := targetY - unit.Y
+	// Orden preferente: hacia el eje dominante, luego los demás
+	candidates := []cand{
+		{unit.X + sign(dx), unit.Y},
+		{unit.X, unit.Y + sign(dy)},
+		{unit.X + sign(dx), unit.Y + sign(dy)},
+		{unit.X - sign(dx), unit.Y - sign(dy)},
+	}
 
-	// Preferir mover en el eje con mayor distancia
-	if abs(dx) >= abs(dy) {
-		if dx > 0 {
-			newX++
-		} else if dx < 0 {
-			newX--
+	for _, c := range candidates {
+		if state.isTileAllowedForUnit(unit, c.x, c.y) {
+			return c.x, c.y, true
 		}
-	} else {
-		if dy > 0 {
-			newY++
-		} else if dy < 0 {
-			newY--
-		}
-	}
-
-	// Validar el fallback
-	if state.isTileAllowedForUnit(unit, newX, newY) {
-		return newX, newY, true
-	}
-
-	// Intenta el otro eje
-	newX, newY = unit.X, unit.Y
-	if dy > 0 {
-		newY++
-	} else if dy < 0 {
-		newY--
-	}
-
-	if state.isTileAllowedForUnit(unit, newX, newY) {
-		return newX, newY, true
 	}
 
 	// No hay movimiento posible
