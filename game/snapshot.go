@@ -16,6 +16,7 @@ type Snapshot struct {
 	AIBaseID          int                `json:"aiBaseId"`
 	Config            PhaseConfig        `json:"config"`            // Configuración de fases
 	CurrentPlayerTurn int                `json:"currentPlayerTurn"` // ID del jugador cuyo turno es
+	GameEnd           *GameEndInfo       `json:"gameEnd,omitempty"`
 }
 
 func BuildSnapshot(state *GameState) Snapshot {
@@ -91,5 +92,6 @@ func BuildSnapshot(state *GameState) Snapshot {
 		AIBaseID:          state.AIBaseID,
 		Config:            state.Config,
 		CurrentPlayerTurn: currentPlayerTurn,
+		GameEnd:           state.GameEnd,
 	}
 }

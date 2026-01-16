@@ -141,6 +141,15 @@ func (s *GameSimulation) ApplyCommand(cmd command.Command) {
 		// Backward compatibility - tratar como ready
 		slog.Info("Player ready (via end_turn)", "playerId", cmd.PlayerID, "tick", s.state.Tick)
 		s.state.SetPlayerReady(cmd.PlayerID, true)
+
+	case command.CommandConfirmEnd:
+		// Confirmación de fin de juego: permitido aunque no esté en preparation
+		if s.state.ConfirmEndBy(cmd.PlayerID) {
+			slog.Info("Game end confirmed by player", "playerId", cmd.PlayerID)
+			// El GameManager eliminará el juego en el loop principal cuando vea confirmado
+		} else {
+			slog.Warn("Confirm end rejected", "playerId", cmd.PlayerID)
+		}
 	}
 }
 

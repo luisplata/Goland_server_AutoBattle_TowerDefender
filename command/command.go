@@ -3,13 +3,14 @@ package command
 type CommandType string
 
 const (
-	CommandDummy     CommandType = "dummy"
-	CommandPlaceBase CommandType = "place_base" // Colocar base principal
-	CommandSpawnUnit CommandType = "spawn_unit"
-	CommandUpgrade   CommandType = "upgrade"
-	CommandMoveUnit  CommandType = "move_unit"
-	CommandEndTurn   CommandType = "end_turn" // Deprecated - usar ready
-	CommandReady     CommandType = "ready"    // Jugador listo para pasar de fase
+	CommandDummy      CommandType = "dummy"
+	CommandPlaceBase  CommandType = "place_base" // Colocar base principal
+	CommandSpawnUnit  CommandType = "spawn_unit"
+	CommandUpgrade    CommandType = "upgrade"
+	CommandMoveUnit   CommandType = "move_unit"
+	CommandEndTurn    CommandType = "end_turn"    // Deprecated - usar ready
+	CommandReady      CommandType = "ready"       // Jugador listo para pasar de fase
+	CommandConfirmEnd CommandType = "confirm_end" // Confirmar fin de juego
 )
 
 type Command struct {

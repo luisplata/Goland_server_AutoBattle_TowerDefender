@@ -28,25 +28,18 @@ function App() {
     setLastTurn(gameState?.currentPlayerTurn)
   }, [gameState?.currentPlayerTurn])
 
-  // Detectar fin de juego según HP de bases
+  // Detectar fin de juego desde el estado del servidor (pendiente de confirmación)
   useEffect(() => {
-    if (!gameState || !gameState.units) return
-    if (gameOver) return
-
-    const units = gameState.units
-    const humanBase = units?.[gameState.humanBaseId]
-    const aiBase = units?.[gameState.aiBaseId]
-
-    const humanDead = !humanBase || (typeof humanBase.hp === 'number' && humanBase.hp <= 0)
-    const aiDead = !aiBase || (typeof aiBase.hp === 'number' && aiBase.hp <= 0)
-
-    if (humanDead || aiDead) {
-      const loserId = humanDead ? gameState.humanPlayerId : gameState.aiPlayerId
-      const winnerId = humanDead ? gameState.aiPlayerId : gameState.humanPlayerId
-      const reason = humanDead ? 'human_base_destroyed' : 'ai_base_destroyed'
-      setGameOver({ loserId, winnerId, reason })
+    if (!gameState) return
+    const ge = gameState.gameEnd
+    if (ge && ge.pending && !ge.confirmed) {
+      setGameOver({ loserId: ge.loserId, winnerId: ge.winnerId, reason: ge.reason })
+    } else if (ge && ge.confirmed) {
+      setGameOver({ loserId: ge.loserId, winnerId: ge.winnerId, reason: ge.reason })
+    } else {
+      setGameOver(null)
     }
-  }, [gameState, gameOver])
+  }, [gameState])
 
   // Crear juego
   const createGame = async () => {
@@ -209,7 +202,8 @@ function App() {
   // Enviar comando
   const sendCommand = async (command) => {
     if (!gameId || !playerId) return
-    if (gameOver) return
+    // Permitir confirmación de fin de juego aunque esté activo el overlay
+    if (gameOver && command?.type !== 'confirm_end') return
     try {
       await fetch(`${API_URL}/command/send`, {
         method: 'POST',
@@ -270,7 +264,7 @@ function App() {
                     {gameOver.reason === 'ai_base_destroyed' && gameOver.winnerId === playerId ? 'Has destruido la base enemiga.' : ''}
                   </p>
                   <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                    <button className="btn-primary" onClick={joinGame}>Nueva Partida</button>
+                    <button className="btn-primary" onClick={() => sendCommand({ type: 'confirm_end' })}>Aceptar resultado</button>
                   </div>
                 </div>
               </div>

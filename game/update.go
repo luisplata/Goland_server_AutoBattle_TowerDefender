@@ -18,6 +18,7 @@ type UpdateMessage struct {
 	AIPlayerReady     bool               `json:"aiPlayerReady"`
 	Config            PhaseConfig        `json:"config"` // Configuración de fases
 	CurrentPlayerTurn int                `json:"currentPlayerTurn"`
+	GameEnd           *GameEndInfo       `json:"gameEnd,omitempty"`
 }
 
 // PhaseChangeEvent notifica cuando cambia la fase del juego
@@ -46,6 +47,7 @@ func SnapshotToUpdate(s Snapshot) UpdateMessage {
 		AIPlayerReady:     s.AIPlayerReady,
 		Config:            s.Config,
 		CurrentPlayerTurn: s.CurrentPlayerTurn,
+		GameEnd:           s.GameEnd,
 	}
 }
 

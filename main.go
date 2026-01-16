@@ -21,6 +21,18 @@ func main() {
 
 		for _, g := range games {
 			if g.Clock.ShouldTick() {
+				// Si hay fin de juego pendiente, no avanzar simulación; solo emitir snapshot
+				if g.State.IsGameEndPending() {
+					currentSnapshot := game.BuildSnapshot(g.State)
+					wsHub.Broadcast(g.ID, game.SnapshotToUpdate(currentSnapshot))
+					lastSnapshots[g.ID] = &currentSnapshot
+					// Si ya está confirmado, terminar el juego
+					if g.State.GameEnd != nil && g.State.GameEnd.Confirmed {
+						gameManager.EndGame(g.ID, g.State.GameEnd.LoserID, g.State.GameEnd.Reason)
+					}
+					continue
+				}
+
 				// Guardar la fase anterior antes de procesar
 				previousPhase := g.State.GetCurrentPhase()
 
@@ -28,8 +40,12 @@ func main() {
 
 				// Verificar condiciones de victoria/derrota
 				if gameOver, loserID, reason := g.Simulation.CheckVictoryConditions(); gameOver {
-					slog.Info("Game ended - victory condition met", "gameId", g.ID, "loserId", loserID, "reason", reason)
-					gameManager.EndGame(g.ID, loserID, reason)
+					slog.Info("Game ended - victory condition met (pending confirmation)", "gameId", g.ID, "loserId", loserID, "reason", reason)
+					g.State.SetPendingEnd(loserID, reason)
+					// Emitir snapshot con estado de fin pendiente
+					currentSnapshot := game.BuildSnapshot(g.State)
+					wsHub.Broadcast(g.ID, game.SnapshotToUpdate(currentSnapshot))
+					lastSnapshots[g.ID] = &currentSnapshot
 					continue // Skip further processing for this game
 				}
 

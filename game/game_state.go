@@ -75,6 +75,9 @@ type GameState struct {
 
 	// Timing config
 	TicksPerSecond int `json:"-"` // Para convertir DPS en ticks
+
+	// Game end (pending confirmation)
+	GameEnd *GameEndInfo `json:"gameEnd,omitempty"`
 }
 
 // defaultDeck devuelve un mazo básico con todas las cartas disponibles.
@@ -154,6 +157,15 @@ type UnitState struct {
 	BuildRange int `json:"buildRange"` // Radio de construcción que proporciona
 }
 
+// GameEndInfo mantiene el estado de fin de juego pendiente
+type GameEndInfo struct {
+	Pending   bool   `json:"pending"`
+	LoserID   int    `json:"loserId"`
+	WinnerID  int    `json:"winnerId"`
+	Reason    string `json:"reason"`
+	Confirmed bool   `json:"confirmed"`
+}
+
 func NewGameState() *GameState {
 	// Usar tiempo actual como seed por defecto
 	return NewGameStateWithSeed(time.Now().UnixNano())
@@ -169,6 +181,7 @@ func NewGameStateWithSeed(seed int64) *GameState {
 		CurrentPhase: PhaseBaseSelection,   // Empezar en fase de selección de base
 		TurnNumber:   0,                    // El turno 1 empieza después de colocar bases
 		Config:       DefaultPhaseConfig(), // Usar configuración por defecto
+		GameEnd:      &GameEndInfo{Pending: false},
 	}
 }
 
@@ -177,6 +190,47 @@ func NewGameStateWithConfig(config PhaseConfig) *GameState {
 	state := NewGameState()
 	state.Config = config
 	return state
+}
+
+// ----- Fin de juego (pendiente/confirmado)
+
+// IsGameEndPending indica si hay fin de juego pendiente de confirmación
+func (g *GameState) IsGameEndPending() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.GameEnd != nil && g.GameEnd.Pending && !g.GameEnd.Confirmed
+}
+
+// SetPendingEnd marca el fin de juego como pendiente
+func (g *GameState) SetPendingEnd(loserID int, reason string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	winnerID := g.HumanPlayerID
+	if loserID == g.HumanPlayerID {
+		winnerID = g.AIPlayerID
+	}
+	g.GameEnd = &GameEndInfo{
+		Pending:   true,
+		LoserID:   loserID,
+		WinnerID:  winnerID,
+		Reason:    reason,
+		Confirmed: false,
+	}
+}
+
+// ConfirmEndBy confirma fin de juego si hay pendiente; retorna true si se aceptó
+func (g *GameState) ConfirmEndBy(playerID int) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.GameEnd == nil || !g.GameEnd.Pending || g.GameEnd.Confirmed {
+		return false
+	}
+	// Permitir que el humano confirme; se puede extender a ambos
+	if playerID != g.HumanPlayerID {
+		return false
+	}
+	g.GameEnd.Confirmed = true
+	return true
 }
 
 func (g *GameState) AdvanceTick() {
