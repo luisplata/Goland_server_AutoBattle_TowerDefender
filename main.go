@@ -21,15 +21,19 @@ func main() {
 
 		for _, g := range games {
 			if g.Clock.ShouldTick() {
+				// Si el fin de juego ya fue confirmado, terminar inmediatamente
+				if g.State.GameEnd != nil && g.State.GameEnd.Confirmed {
+					currentSnapshot := game.BuildSnapshot(g.State)
+					wsHub.Broadcast(g.ID, game.SnapshotToUpdate(currentSnapshot))
+					lastSnapshots[g.ID] = &currentSnapshot
+					gameManager.EndGame(g.ID, g.State.GameEnd.LoserID, g.State.GameEnd.Reason)
+					continue
+				}
 				// Si hay fin de juego pendiente, no avanzar simulación; solo emitir snapshot
 				if g.State.IsGameEndPending() {
 					currentSnapshot := game.BuildSnapshot(g.State)
 					wsHub.Broadcast(g.ID, game.SnapshotToUpdate(currentSnapshot))
 					lastSnapshots[g.ID] = &currentSnapshot
-					// Si ya está confirmado, terminar el juego
-					if g.State.GameEnd != nil && g.State.GameEnd.Confirmed {
-						gameManager.EndGame(g.ID, g.State.GameEnd.LoserID, g.State.GameEnd.Reason)
-					}
 					continue
 				}
 

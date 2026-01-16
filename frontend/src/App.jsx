@@ -161,7 +161,7 @@ function App() {
       try {
         const message = JSON.parse(event.data)
         
-        // El backend envía directamente el objeto con type='snapshot' o similar
+        // Procesar snapshots completos
         if (message.type === 'snapshot' || message.type === 'update') {
           setGameState(message)
           // Reset selection if map changes dimensions
@@ -171,7 +171,67 @@ function App() {
             if (sel.x >= map.width || sel.y >= map.height) return null
             return sel
           })
-        } else if (message.payload) {
+        } 
+        // Procesar deltas (cambios incrementales)
+        else if (message.type === 'delta') {
+          setGameState((prevState) => {
+            if (!prevState) return prevState
+            
+            const newState = { ...prevState }
+            
+            // Aplicar unidades nuevas (spawned)
+            if (message.spawned && message.spawned.length > 0) {
+              message.spawned.forEach(unit => {
+                newState.units = { ...newState.units, [unit.id]: unit }
+              })
+            }
+            
+            // Aplicar movimientos
+            if (message.moved && message.moved.length > 0) {
+              message.moved.forEach(move => {
+                if (newState.units[move.id]) {
+                  newState.units[move.id] = {
+                    ...newState.units[move.id],
+                    x: move.x,
+                    y: move.y,
+                  }
+                }
+              })
+            }
+            
+            // Aplicar cambios de estado (TargetID, HP, Status)
+            if (message.updated && message.updated.length > 0) {
+              message.updated.forEach(update => {
+                if (newState.units[update.id]) {
+                  const unitUpdate = { ...newState.units[update.id] }
+                  if (update.targetId !== undefined) unitUpdate.targetId = update.targetId
+                  if (update.hp !== undefined) unitUpdate.hp = update.hp
+                  if (update.status !== undefined) unitUpdate.status = update.status
+                  newState.units[update.id] = unitUpdate
+                }
+              })
+            }
+            
+            // Aplicar unidades muertas
+            if (message.dead && message.dead.length > 0) {
+              const newUnits = { ...newState.units }
+              message.dead.forEach(unitId => {
+                delete newUnits[unitId]
+              })
+              newState.units = newUnits
+            }
+            
+            // Actualizar otros campos del estado
+            if (message.tick !== undefined) newState.tick = message.tick
+            if (message.currentPhase !== undefined) newState.currentPhase = message.currentPhase
+            if (message.turnNumber !== undefined) newState.turnNumber = message.turnNumber
+            if (message.humanPlayerReady !== undefined) newState.humanPlayerReady = message.humanPlayerReady
+            if (message.aiPlayerReady !== undefined) newState.aiPlayerReady = message.aiPlayerReady
+            
+            return newState
+          })
+        } 
+        else if (message.payload) {
           // Por si vienen con payload
           setGameState(message.payload)
           const map = message.payload?.map
@@ -205,7 +265,7 @@ function App() {
     // Permitir confirmación de fin de juego aunque esté activo el overlay
     if (gameOver && command?.type !== 'confirm_end') return
     try {
-      await fetch(`${API_URL}/command/send`, {
+      const res = await fetch(`${API_URL}/command/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -214,6 +274,24 @@ function App() {
           ...command
         })
       })
+
+      // Si se confirmó fin de juego y el servidor aceptó, limpiar UI y conexión
+      if (res.ok && command?.type === 'confirm_end') {
+        try { ws?.close() } catch {}
+        setWs(null)
+        setGameOver(null)
+        // Limpiar identificación persistida del jugador para este juego
+        try { localStorage.removeItem(`playerId_${gameId}`) } catch {}
+        // Resetear estado de sesión
+        setPlayerId(null)
+        setGameId(null)
+        setGameIdInput('')
+        setSelectedTile(null)
+        setSelectedUnitId(null)
+        setSelectedCard(null)
+        setGameState(null)
+        setConnected(false)
+      }
     } catch (err) {
       console.error('Error sending command:', err)
     }

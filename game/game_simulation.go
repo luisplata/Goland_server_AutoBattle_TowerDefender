@@ -260,9 +260,9 @@ func (s *GameSimulation) ProcessAIPreparation(ticksSinceStart int) {
 	}
 }
 
-// playAICard intenta jugar la primera carta en mano en una posición válida.
+// playAICard recorre la mano del AI y juega la primera carta que pueda colocar.
 func (s *GameSimulation) playAICard() {
-	// Obtener la primera carta de la mano del AI
+	// Copiar la mano bajo lock para evitar mutaciones concurrentes
 	s.state.mu.Lock()
 	aiID := s.state.AIPlayerID
 	p, ok := s.state.Players[aiID]
@@ -270,20 +270,24 @@ func (s *GameSimulation) playAICard() {
 		s.state.mu.Unlock()
 		return
 	}
-	card := p.Hand[0]
+	handCopy := append([]string(nil), p.Hand...)
 	s.state.mu.Unlock()
 
-	// Buscar posición válida (con validación de área controlada)
-	x, y, okPos := s.state.findSpawnPosition(card, aiID, 50)
-	if !okPos {
-		slog.Warn("AI could not find spawn position for card", "card", card, "aiID", aiID)
-		return
+	for _, card := range handCopy {
+		x, y, okPos := s.state.findSpawnPosition(card, aiID, 50)
+		if !okPos {
+			// Esta carta no tiene posición válida ahora, probar la siguiente
+			continue
+		}
+
+		if s.spawnUnit(0, aiID, card, x, y) {
+			s.state.ConsumeCardFromHand(aiID, card)
+			return
+		}
 	}
 
-	// Spawnear primero, luego consumir carta solo si fue exitoso
-	if s.spawnUnit(0, aiID, card, x, y) {
-		s.state.ConsumeCardFromHand(aiID, card)
-	}
+	// No se pudo jugar ninguna carta esta vez
+	slog.Warn("AI could not play any card", "aiID", aiID, "handSize", len(handCopy))
 }
 
 func (s *GameSimulation) spawnUnit(gameId int, playerId int, unitType string, x_position int, y_position int) bool {
@@ -382,7 +386,8 @@ func (s *GameSimulation) UpdateTargets() {
 	defer s.state.mu.Unlock()
 
 	for _, unit := range s.state.Units {
-		if !unit.CanMove {
+		// Solo actualizar targets para unidades que se mueven O que pueden atacar
+		if !unit.CanMove && unit.AttackDamage <= 0 {
 			continue
 		}
 
@@ -394,6 +399,9 @@ func (s *GameSimulation) UpdateTargets() {
 			}
 			if candidate.HP <= 0 {
 				continue // Skip dead units
+			}
+			if !candidate.IsTargetable {
+				continue // Skip non-targetable units (like walls)
 			}
 			dx := abs(unit.X - candidate.X)
 			dy := abs(unit.Y - candidate.Y)
@@ -407,6 +415,7 @@ func (s *GameSimulation) UpdateTargets() {
 		if nearest != nil {
 			unit.TargetX = nearest.X
 			unit.TargetY = nearest.Y
+			unit.TargetID = nearest.ID
 		} else {
 			// No enemy in detection range - fallback to enemy base
 			enemyBaseID := 0
@@ -421,6 +430,7 @@ func (s *GameSimulation) UpdateTargets() {
 				if enemyBase, ok := s.state.Units[enemyBaseID]; ok && enemyBase.HP > 0 {
 					unit.TargetX = enemyBase.X
 					unit.TargetY = enemyBase.Y
+					unit.TargetID = enemyBase.ID
 				} else {
 					// Enemy base is dead, find any enemy unit alive
 					var fallbackTarget *UnitState
@@ -436,9 +446,16 @@ func (s *GameSimulation) UpdateTargets() {
 					if fallbackTarget != nil {
 						unit.TargetX = fallbackTarget.X
 						unit.TargetY = fallbackTarget.Y
+						unit.TargetID = fallbackTarget.ID
 					}
 				}
 			}
+		}
+
+		// Para unidades que no se mueven, mantener target en su propia posición
+		if !unit.CanMove {
+			unit.TargetX = unit.X
+			unit.TargetY = unit.Y
 		}
 	}
 }
@@ -532,6 +549,9 @@ func (s *GameSimulation) Attack() {
 			if candidate.PlayerID == attacker.PlayerID {
 				continue
 			}
+			if !candidate.IsTargetable {
+				continue // Skip non-targetable units (like walls)
+			}
 			dx := abs(attacker.X - candidate.X)
 			dy := abs(attacker.Y - candidate.Y)
 			dist := dx + dy // Manhattan
@@ -567,6 +587,20 @@ func (s *GameSimulation) Cleanup() {
 		slog.Info("Removing dead unit", "unitId", id)
 		delete(s.state.Units, id)
 	}
+
+	// Limpiar TargetID de unidades que apuntaban a unidades muertas
+	if len(dead) > 0 {
+		deadSet := make(map[int]bool)
+		for _, id := range dead {
+			deadSet[id] = true
+		}
+		for _, unit := range s.state.Units {
+			if deadSet[unit.TargetID] {
+				unit.TargetID = 0
+			}
+		}
+	}
+
 	s.state.mu.Unlock()
 
 	// Limpiar cache de pathfinding si hay muertes (cambios en mapa)

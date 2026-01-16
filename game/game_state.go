@@ -128,6 +128,7 @@ type UnitState struct {
 	// Movement control (not serialized)
 	TargetX           int  `json:"-"`
 	TargetY           int  `json:"-"`
+	TargetID          int  `json:"targetId"` // ID de la unidad objetivo (0 si no hay objetivo)
 	MoveIntervalTicks int  `json:"-"`
 	NextMoveTick      int  `json:"-"`
 	CanMove           bool `json:"-"`
@@ -149,6 +150,9 @@ type UnitState struct {
 
 	// Blocking
 	IsBlocker bool `json:"isBlocker"`
+
+	// Targeting
+	IsTargetable bool `json:"isTargetable"`
 
 	// Category for pathfinding
 	Category UnitCategory `json:"category"`
@@ -462,9 +466,10 @@ func (g *GameState) SetPlayerReady(playerID int, ready bool) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	if playerID == g.HumanPlayerID {
+	switch playerID {
+	case g.HumanPlayerID:
 		g.HumanPlayerReady = ready
-	} else if playerID == g.AIPlayerID {
+	case g.AIPlayerID:
 		g.AIPlayerReady = ready
 	}
 }
@@ -491,9 +496,10 @@ func (g *GameState) HasPlayerPlacedBase(playerID int) bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	if playerID == g.HumanPlayerID {
+	switch playerID {
+	case g.HumanPlayerID:
 		return g.HumanBaseID > 0 && g.Units[g.HumanBaseID] != nil
-	} else if playerID == g.AIPlayerID {
+	case g.AIPlayerID:
 		return g.AIBaseID > 0 && g.Units[g.AIBaseID] != nil
 	}
 	return false
@@ -516,9 +522,10 @@ func (g *GameState) MarkBasePlaced(playerID int, baseID int) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	if playerID == g.HumanPlayerID {
+	switch playerID {
+	case g.HumanPlayerID:
 		g.HumanBaseID = baseID
-	} else if playerID == g.AIPlayerID {
+	case g.AIPlayerID:
 		g.AIBaseID = baseID
 	}
 }
@@ -592,9 +599,10 @@ func (g *GameState) SpawnUnit(playerID int, unitType string, x, y int) *UnitStat
 	if unit.CanMove {
 		// Determine enemy base ID depending on the spawning player's side
 		enemyBaseID := 0
-		if playerID == g.HumanPlayerID {
+		switch playerID {
+		case g.HumanPlayerID:
 			enemyBaseID = g.AIBaseID
-		} else if playerID == g.AIPlayerID {
+		case g.AIPlayerID:
 			enemyBaseID = g.HumanBaseID
 		}
 
@@ -731,6 +739,9 @@ func (g *GameState) applyUnitStats(unit *UnitState) {
 	// Aplicar propiedades de bloqueo
 	unit.IsBlocker = stats.IsBlocker
 
+	// Aplicar propiedades de targeting
+	unit.IsTargetable = stats.IsTargetable
+
 	// Aplicar rango de construcción
 	unit.BuildRange = stats.BuildRange
 
@@ -799,9 +810,10 @@ func (g *GameState) canUnitTypeEnter(unitType string, skipUnitID int, x, y int) 
 func (g *GameState) isWithinControlledArea(playerID int, x, y int) bool {
 	// Si el jugador no tiene base aún, permitir spawneo libre (para colocar la base inicial)
 	baseID := 0
-	if playerID == g.HumanPlayerID {
+	switch playerID {
+	case g.HumanPlayerID:
 		baseID = g.HumanBaseID
-	} else if playerID == g.AIPlayerID {
+	case g.AIPlayerID:
 		baseID = g.AIBaseID
 	}
 

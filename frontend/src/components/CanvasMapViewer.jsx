@@ -268,6 +268,27 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
       ctx.strokeRect(selectedTile.x * tileSize, selectedTile.y * tileSize, tileSize, tileSize)
     }
 
+    // Draw targeting lines for selected unit only
+    if (units && selectedUnitId && units[selectedUnitId]) {
+      const unit = units[selectedUnitId]
+      if (unit.targetId && units[unit.targetId]) {
+        const target = units[unit.targetId]
+        const cx = (unit.x + 0.5) * tileSize
+        const cy = (unit.y + 0.5) * tileSize
+        const targetCx = (target.x + 0.5) * tileSize
+        const targetCy = (target.y + 0.5) * tileSize
+        
+        ctx.strokeStyle = '#ff00ff'
+        ctx.lineWidth = 0.2 * tileSize
+        ctx.globalAlpha = 1.0
+        ctx.beginPath()
+        ctx.moveTo(cx, cy)
+        ctx.lineTo(targetCx, targetCy)
+        ctx.stroke()
+        ctx.globalAlpha = 1
+      }
+    }
+
     // Units
     if (units) {
       Object.values(units).forEach(unit => {
@@ -466,6 +487,12 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
                 <div>{u.attackRange}</div>
                 <div>Rango Detección:</div>
                 <div>{u.detectionRange}</div>
+                {u.targetId && units[u.targetId] && (
+                  <>
+                    <div>Target:</div>
+                    <div style={{ color: '#00ffff' }}>{units[u.targetId].unitType} (ID: {u.targetId})</div>
+                  </>
+                )}
                 {u.spawnedById && units[u.spawnedById] && (
                   <>
                     <div>Generada por:</div>

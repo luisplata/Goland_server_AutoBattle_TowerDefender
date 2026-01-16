@@ -6,11 +6,19 @@ type UnitMove struct {
 	Y  int `json:"y"`
 }
 
+type UnitUpdate struct {
+	ID       int    `json:"id"`
+	TargetID int    `json:"targetId,omitempty"`
+	HP       int    `json:"hp,omitempty"`
+	Status   string `json:"status,omitempty"`
+}
+
 type Delta struct {
 	Type             string       `json:"type"`
 	Tick             int          `json:"tick"`
 	Spawned          []*UnitState `json:"spawned,omitempty"`
 	Moved            []UnitMove   `json:"moved,omitempty"`
+	Updated          []UnitUpdate `json:"updated,omitempty"`
 	Dead             []int        `json:"dead,omitempty"`
 	CurrentPhase     GamePhase    `json:"currentPhase"`
 	TurnNumber       int          `json:"turnNumber"`
@@ -27,6 +35,7 @@ func BuildDelta(prev, curr Snapshot) Delta {
 		Tick:             curr.Tick,
 		Spawned:          []*UnitState{},
 		Moved:            []UnitMove{},
+		Updated:          []UnitUpdate{},
 		Dead:             []int{},
 		CurrentPhase:     curr.CurrentPhase,
 		TurnNumber:       curr.TurnNumber,
@@ -44,7 +53,7 @@ func BuildDelta(prev, curr Snapshot) Delta {
 		}
 	}
 
-	// Detectar movimientos
+	// Detectar movimientos y cambios de estado
 	for id, currUnit := range curr.Units {
 		prevUnit, exists := prev.Units[id]
 		if !exists {
@@ -57,6 +66,23 @@ func BuildDelta(prev, curr Snapshot) Delta {
 				X:  currUnit.X,
 				Y:  currUnit.Y,
 			})
+		}
+
+		// Detectar cambios de estado (TargetID, HP, Status)
+		if currUnit.TargetID != prevUnit.TargetID || currUnit.HP != prevUnit.HP || currUnit.Status != prevUnit.Status {
+			update := UnitUpdate{
+				ID: id,
+			}
+			if currUnit.TargetID != prevUnit.TargetID {
+				update.TargetID = currUnit.TargetID
+			}
+			if currUnit.HP != prevUnit.HP {
+				update.HP = currUnit.HP
+			}
+			if currUnit.Status != prevUnit.Status {
+				update.Status = currUnit.Status
+			}
+			delta.Updated = append(delta.Updated, update)
 		}
 	}
 

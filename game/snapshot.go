@@ -43,6 +43,10 @@ func BuildSnapshot(state *GameState) Snapshot {
 			IsGenerator:       unit.IsGenerator,
 			GeneratedUnitType: unit.GeneratedUnitType,
 			SpawnedByID:       unit.SpawnedByID,
+			TargetID:          unit.TargetID,
+			IsTargetable:      unit.IsTargetable,
+			IsBlocker:         unit.IsBlocker,
+			AttackDPS:         unit.AttackDPS,
 		}
 	}
 
@@ -52,9 +56,10 @@ func BuildSnapshot(state *GameState) Snapshot {
 		handCopy := make([]string, len(player.Hand))
 		copy(handCopy, player.Hand)
 		readyFlag := false
-		if id == state.HumanPlayerID {
+		switch id {
+		case state.HumanPlayerID:
 			readyFlag = state.HumanPlayerReady
-		} else if id == state.AIPlayerID {
+		case state.AIPlayerID:
 			readyFlag = state.AIPlayerReady
 		}
 		playersCopy[id] = &Player{
