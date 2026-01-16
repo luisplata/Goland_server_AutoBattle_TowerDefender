@@ -141,3 +141,11 @@ docker compose up -d
 docker compose up -d --build  # después de cambios
 docker compose logs -f
 ```
+
+Limpiar y volver a ejecutar
+
+```bash
+docker-compose down
+docker system prune -f
+docker-compose up --build -d
+```

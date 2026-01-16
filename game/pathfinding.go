@@ -4,7 +4,7 @@ import (
 	"container/heap"
 )
 
-const maxPathSearchSteps = MapWidth * MapHeight // allow full-map searches to avoid shoreline stalls
+const maxPathSearchSteps = 200 // Límite optimizado: búsqueda más rápida (antes: MapWidth * MapHeight)
 
 // PathNode representa un nodo en la búsqueda A*
 type PathNode struct {
@@ -54,12 +54,14 @@ func (h *NodeHeap) Pop() interface{} {
 
 // PathCache almacena paths calculados para evitar recalcular
 type PathCache struct {
-	paths map[string][]Point
+	paths   map[string][]Point
+	maxSize int // Límite de entradas en cache
 }
 
 func NewPathCache() *PathCache {
 	return &PathCache{
-		paths: make(map[string][]Point),
+		paths:   make(map[string][]Point),
+		maxSize: 1000, // Límite razonable para evitar consumo de memoria excesivo
 	}
 }
 
@@ -79,6 +81,11 @@ func (pc *PathCache) Get(startX, startY, endX, endY int) ([]Point, bool) {
 }
 
 func (pc *PathCache) Set(startX, startY, endX, endY int, path []Point) {
+	// Limpiar cache si excede el límite
+	if len(pc.paths) >= pc.maxSize {
+		pc.Clear()
+	}
+
 	key := pc.GetKey(startX, startY, endX, endY)
 	pc.paths[key] = path
 }

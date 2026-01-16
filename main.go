@@ -19,6 +19,12 @@ func main() {
 	for {
 		games := gameManager.GetAllGames()
 
+		// Optimización: si no hay juegos activos, dormir más tiempo
+		if len(games) == 0 {
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+
 		for _, g := range games {
 			if g.Clock.ShouldTick() {
 				// Si el fin de juego ya fue confirmado, terminar inmediatamente
@@ -79,6 +85,8 @@ func main() {
 			}
 		}
 
-		time.Sleep(1 * time.Millisecond)
+		// Sleep de 10ms = ~100 actualizaciones/segundo (suficiente para juegos en tiempo real)
+		// Antes: 1ms = ~1000 iteraciones/segundo = alto consumo CPU
+		time.Sleep(10 * time.Millisecond)
 	}
 }

@@ -38,7 +38,12 @@ func (s *GameSimulation) ProcessTick() {
 	// 2️⃣ Lógica del juego (solo en fase de batalla)
 	if s.state.GetCurrentPhase() == PhaseBattle {
 		s.Produce()
-		s.UpdateTargets()
+
+		// Optimización: UpdateTargets solo cada 5 ticks (reduce cálculos costosos)
+		if s.state.Tick%5 == 0 {
+			s.UpdateTargets()
+		}
+
 		s.Move()
 		s.Block()
 		s.Attack()
