@@ -333,7 +333,7 @@ function App() {
             )}
           </div>
         ) : (
-          <>
+          <div className="game-layout">
             {gameOver && (
               <div className="overlay">
                 <div className="overlay-content">
@@ -348,34 +348,46 @@ function App() {
                 </div>
               </div>
             )}
-            <UnitLegend />
-            <CanvasMapViewer 
-              gameMap={gameState?.map} 
-              units={gameState?.units} 
-              selectedTile={selectedTile}
-              onSelectTile={(tile) => setSelectedTile(tile)}
-              disableZoom={false}
-              playerId={playerId}
-              selectedCard={selectedCard}
-            />
-            <GameBoard 
-              state={gameState}
-              playerId={playerId}
-              selectedUnitId={selectedUnitId}
-              onSelectUnit={setSelectedUnitId}
-            />
-            <GameControls 
-              state={gameState}
-              playerId={playerId}
-              onCommand={sendCommand}
-              selectedTile={selectedTile}
-              gameMap={gameState?.map}
-              onClearSelection={() => setSelectedTile(null)}
-              selectedUnitId={selectedUnitId}
-              selectedCard={selectedCard}
-              onSelectCard={setSelectedCard}
-            />
-          </>
+            
+            {/* Info panel: GameBoard + UnitLegend */}
+            <div className="game-info-section">
+              <GameBoard 
+                state={gameState}
+                playerId={playerId}
+                selectedUnitId={selectedUnitId}
+                onSelectUnit={setSelectedUnitId}
+              />
+              <UnitLegend />
+            </div>
+
+            {/* Map section */}
+            <div className="map-section">
+              <CanvasMapViewer 
+                gameMap={gameState?.map} 
+                units={gameState?.units} 
+                selectedTile={selectedTile}
+                onSelectTile={(tile) => setSelectedTile(tile)}
+                disableZoom={false}
+                playerId={playerId}
+                selectedCard={selectedCard}
+              />
+            </div>
+
+            {/* Controls section */}
+            <div className="controls-section">
+              <GameControls 
+                state={gameState}
+                playerId={playerId}
+                onCommand={sendCommand}
+                selectedTile={selectedTile}
+                gameMap={gameState?.map}
+                onClearSelection={() => setSelectedTile(null)}
+                selectedUnitId={selectedUnitId}
+                selectedCard={selectedCard}
+                onSelectCard={setSelectedCard}
+              />
+            </div>
+          </div>
         )}
       </div>
     </div>

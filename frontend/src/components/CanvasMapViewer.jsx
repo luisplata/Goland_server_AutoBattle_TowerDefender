@@ -36,6 +36,8 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
   const [isPanning, setIsPanning] = useState(false)
   const [startPan, setStartPan] = useState({ x: 0, y: 0 })
   const [selectedUnitId, setSelectedUnitId] = useState(null)
+  const [touchStartTime, setTouchStartTime] = useState(0)
+  const [lastTouchDistance, setLastTouchDistance] = useState(0)
   const containerRef = useRef(null)
   const canvasRef = useRef(null)
 
@@ -166,15 +168,6 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
     })
   }, [disableZoom, pan])
 
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-    container.addEventListener('wheel', handleWheel, { passive: false })
-    return () => {
-      container.removeEventListener('wheel', handleWheel)
-    }
-  }, [handleWheel])
-
   // Mouse handlers for pan and click
   const handleMouseDown = (e) => {
     if (e.button === 1 || e.shiftKey) {
@@ -193,6 +186,145 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
   }
 
   const handleMouseUp = () => setIsPanning(false)
+
+  // Touch handlers for mobile
+  const getTouchDistance = (touch1, touch2) => {
+    const dx = touch1.clientX - touch2.clientX
+    const dy = touch1.clientY - touch2.clientY
+    return Math.sqrt(dx * dx + dy * dy)
+  }
+
+  const getTouchCenter = (touch1, touch2) => {
+    return {
+      x: (touch1.clientX + touch2.clientX) / 2,
+      y: (touch1.clientY + touch2.clientY) / 2
+    }
+  }
+
+  const handleTouchStart = useCallback((e) => {
+    setTouchStartTime(Date.now())
+    
+    if (e.touches.length === 1) {
+      // Single touch - start panning
+      setIsPanning(true)
+      setStartPan({ x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y })
+    } else if (e.touches.length === 2) {
+      // Two fingers - prepare for pinch zoom
+      const distance = getTouchDistance(e.touches[0], e.touches[1])
+      setLastTouchDistance(distance)
+      setIsPanning(false)
+    }
+  }, [pan])
+
+  const handleTouchMove = useCallback((e) => {
+    e.preventDefault()
+    
+    if (e.touches.length === 1 && isPanning) {
+      // Single touch pan
+      let newPan = { 
+        x: e.touches[0].clientX - startPan.x, 
+        y: e.touches[0].clientY - startPan.y 
+      }
+      newPan = getClampedPan(newPan.x, newPan.y, zoom)
+      setPan(newPan)
+    } else if (e.touches.length === 2) {
+      // Pinch to zoom
+      const distance = getTouchDistance(e.touches[0], e.touches[1])
+      const center = getTouchCenter(e.touches[0], e.touches[1])
+      const container = containerRef.current
+      if (!container) return
+      
+      const rect = container.getBoundingClientRect()
+      const centerX = center.x - rect.left
+      const centerY = center.y - rect.top
+      
+      if (lastTouchDistance > 0) {
+        const delta = (distance - lastTouchDistance) * 0.01
+        
+        setZoom(oldZoom => {
+          const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldZoom + delta))
+          if (oldZoom === newZoom) return oldZoom
+          
+          const worldXBefore = (centerX - pan.x) / oldZoom
+          const worldYBefore = (centerY - pan.y) / oldZoom
+          
+          setPan(prevPan => {
+            let newPan = {
+              x: centerX - worldXBefore * newZoom,
+              y: centerY - worldYBefore * newZoom,
+            }
+            newPan = getClampedPan(newPan.x, newPan.y, newZoom)
+            return newPan
+          })
+          
+          return newZoom
+        })
+      }
+      
+      setLastTouchDistance(distance)
+    }
+  }, [isPanning, startPan, zoom, pan, lastTouchDistance])
+
+  const handleTouchEnd = useCallback((e) => {
+    const touchDuration = Date.now() - touchStartTime
+    
+    if (e.touches.length === 0) {
+      // All touches ended
+      setIsPanning(false)
+      setLastTouchDistance(0)
+      
+      // If it was a quick tap (< 200ms), treat as click
+      if (touchDuration < 200 && e.changedTouches.length === 1) {
+        const touch = e.changedTouches[0]
+        const canvas = canvasRef.current
+        const container = containerRef.current
+        if (!canvas || !container) return
+        
+        const rect = container.getBoundingClientRect()
+        const worldX = (touch.clientX - rect.left - pan.x) / zoom
+        const worldY = (touch.clientY - rect.top - pan.y) / zoom
+        const x = Math.floor(worldX / tileSize)
+        const y = Math.floor(worldY / tileSize)
+        
+        if (x >= 0 && y >= 0 && x < gameMap.width && y < gameMap.height) {
+          const tile = gameMap.tiles[y][x]
+          const tileData = { x, y, walkable: tile.walkable }
+          
+          if (onSelectTile) onSelectTile(tileData)
+          
+          // Check for unit at tile
+          if (units) {
+            const unitAtTile = Object.values(units).find(u => u.x === x && u.y === y)
+            if (unitAtTile) {
+              setSelectedUnitId(unitAtTile.id)
+            } else {
+              setSelectedUnitId(null)
+            }
+          }
+        }
+      }
+    } else if (e.touches.length === 1) {
+      // One finger remaining after two-finger gesture
+      setLastTouchDistance(0)
+      setIsPanning(true)
+      setStartPan({ x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y })
+    }
+  }, [touchStartTime, pan, zoom, gameMap, units, onSelectTile])
+
+  // Register event listeners
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    container.addEventListener('wheel', handleWheel, { passive: false })
+    
+    // Add touch event listeners with passive: false to allow preventDefault
+    container.addEventListener('touchmove', handleTouchMove, { passive: false })
+    
+    return () => {
+      container.removeEventListener('wheel', handleWheel)
+      container.removeEventListener('touchmove', handleTouchMove)
+    }
+  }, [handleWheel, handleTouchMove])
 
   const resetView = () => {
     setZoom(3)
@@ -438,8 +570,10 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onClick={handleClick}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
         onContextMenu={(e) => e.preventDefault()}
-        style={{ cursor: isPanning ? 'grabbing' : 'crosshair' }}
+        style={{ cursor: isPanning ? 'grabbing' : 'crosshair', touchAction: 'none' }}
       >
         <canvas ref={canvasRef} className="map-canvas" />
       </div>
