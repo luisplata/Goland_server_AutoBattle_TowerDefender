@@ -1,6 +1,9 @@
 import './GameStatusPanel.css'
+import { useState } from 'react'
 
 export default function GameStatusPanel({ state, playerId, gameId }) {
+  const [isExpanded, setIsExpanded] = useState(true)
+
   if (!state) {
     return null
   }
@@ -47,78 +50,87 @@ export default function GameStatusPanel({ state, playerId, gameId }) {
   const enemyBaseHP = allUnits.find(u => u.playerId !== playerId && u.unitType.toLowerCase() === 'base')?.hp || 0
 
   return (
-    <div className={`game-status-panel ${isYourTurn ? 'your-turn' : ''}`}>
+    <div className={`game-status-panel ${isYourTurn ? 'your-turn' : ''} ${isExpanded ? 'expanded' : 'collapsed'}`}>
       <div className="status-header">
         <div className="status-title">🎮 Game State</div>
+        <button 
+          className="status-toggle-btn"
+          onClick={() => setIsExpanded(!isExpanded)}
+          title={isExpanded ? 'Collapse' : 'Expand'}
+        >
+          {isExpanded ? '▼' : '▶'}
+        </button>
       </div>
 
-      <div className="status-content">
-        <div className="status-row">
-          <span className="status-label">🎮 Game:</span>
-          <span className="status-value">{gameId || '-'}</span>
-        </div>
+      {isExpanded && (
+        <div className="status-content">
+          <div className="status-row">
+            <span className="status-label">🎮 Game:</span>
+            <span className="status-value">{gameId || '-'}</span>
+          </div>
 
-        <div className="status-row">
-          <span className="status-label">🎯 Turn:</span>
-          <span className="status-value">{state.turnNumber || 0}</span>
-        </div>
+          <div className="status-row">
+            <span className="status-label">🎯 Turn:</span>
+            <span className="status-value">{state.turnNumber || 0}</span>
+          </div>
 
-        {/* Phase con barra de progreso */}
-        <div className="phase-section">
-          <div className="status-row phase-row">
-            <span className="status-label">Phase:</span>
-            <span className={`phase-badge ${state.currentPhase}`} style={{ backgroundColor: phaseInfo.color }}>
-              <span className="phase-emoji">{phaseInfo.emoji}</span> {phaseInfo.label}
+          {/* Phase con barra de progreso */}
+          <div className="phase-section">
+            <div className="status-row phase-row">
+              <span className="status-label">Phase:</span>
+              <span className={`phase-badge ${state.currentPhase}`} style={{ backgroundColor: phaseInfo.color }}>
+                <span className="phase-emoji">{phaseInfo.emoji}</span> {phaseInfo.label}
+              </span>
+            </div>
+            
+            {/* Timer y barra de progreso */}
+            {phaseInfo.duration > 0 && (
+              <div className="phase-timer-section">
+                <div className="phase-timer">
+                  ⏱️ {formatTime(remainingSeconds)}
+                </div>
+                <div className="phase-progress-bar">
+                  <div 
+                    className="phase-progress-fill" 
+                    style={{ 
+                      width: `${Math.min(100, progress)}%`,
+                      backgroundColor: phaseInfo.color
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Turn indicator prominente */}
+          <div className={`turn-indicator ${isSimultaneous ? 'simultaneous' : (isHumanTurn ? 'human' : 'ai')}`}>
+            {isSimultaneous ? '⏱️ SIMULTANEOUS' : (isHumanTurn ? '👤 YOUR TURN' : '🤖 AI TURN')}
+          </div>
+
+          <div className="status-divider"></div>
+
+          {/* Unidades */}
+          <div className="status-row">
+            <span className="status-label">👤 Your Units:</span>
+            <span className="status-value unit-count">{myUnits.length}</span>
+          </div>
+
+          <div className="status-row">
+            <span className="status-label">🤖 Enemy Units:</span>
+            <span className="status-value unit-count">{enemyUnits.length}</span>
+          </div>
+
+          {/* Base HP */}
+          <div className="status-row">
+            <span className="status-label">🏰 Bases:</span>
+            <span className="base-hp">
+              <span className="my-base">♥ {myBaseHP}</span>
+              <span className="separator">vs</span>
+              <span className="enemy-base">♥ {enemyBaseHP}</span>
             </span>
           </div>
-          
-          {/* Timer y barra de progreso */}
-          {phaseInfo.duration > 0 && (
-            <div className="phase-timer-section">
-              <div className="phase-timer">
-                ⏱️ {formatTime(remainingSeconds)}
-              </div>
-              <div className="phase-progress-bar">
-                <div 
-                  className="phase-progress-fill" 
-                  style={{ 
-                    width: `${Math.min(100, progress)}%`,
-                    backgroundColor: phaseInfo.color
-                  }}
-                />
-              </div>
-            </div>
-          )}
         </div>
-
-        {/* Turn indicator prominente */}
-        <div className={`turn-indicator ${isSimultaneous ? 'simultaneous' : (isHumanTurn ? 'human' : 'ai')}`}>
-          {isSimultaneous ? '⏱️ SIMULTANEOUS' : (isHumanTurn ? '👤 YOUR TURN' : '🤖 AI TURN')}
-        </div>
-
-        <div className="status-divider"></div>
-
-        {/* Unidades */}
-        <div className="status-row">
-          <span className="status-label">👤 Your Units:</span>
-          <span className="status-value unit-count">{myUnits.length}</span>
-        </div>
-
-        <div className="status-row">
-          <span className="status-label">🤖 Enemy Units:</span>
-          <span className="status-value unit-count">{enemyUnits.length}</span>
-        </div>
-
-        {/* Base HP */}
-        <div className="status-row">
-          <span className="status-label">🏰 Bases:</span>
-          <span className="base-hp">
-            <span className="my-base">♥ {myBaseHP}</span>
-            <span className="separator">vs</span>
-            <span className="enemy-base">♥ {enemyBaseHP}</span>
-          </span>
-        </div>
-      </div>
+      )}
     </div>
   )
 }

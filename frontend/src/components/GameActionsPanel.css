@@ -1,29 +1,79 @@
+@import './FloatingPanels.css';
+
 .game-actions-panel {
   position: relative;
   width: 100%;
-  max-width: 320px;
-  background: rgba(0, 0, 0, 0.85);
-  border: 2px solid #00ff88;
-  border-radius: 8px;
+  max-width: 340px;
+  background: var(--panel-bg-dark);
+  border: 2px solid var(--panel-border);
+  border-radius: 12px;
   backdrop-filter: blur(10px);
-  font-size: 0.9rem;
-  max-height: 60vh;
-  overflow-y: auto;
+  transition: all 0.3s ease;
+  box-shadow: var(--panel-shadow);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.game-actions-panel:hover {
+  box-shadow: var(--panel-shadow-hover);
+  border-color: var(--panel-accent);
 }
 
 .actions-header {
-  background: rgba(0, 255, 136, 0.1);
-  border-bottom: 2px solid rgba(0, 255, 136, 0.3);
-  padding: 0.75rem 1rem;
-  border-radius: 6px 6px 0 0;
+  background: linear-gradient(135deg, rgba(0, 255, 136, 0.12), rgba(0, 255, 136, 0.05));
+  border-bottom: 1px solid rgba(0, 255, 136, 0.4);
+  padding: 0.875rem 1rem;
+  border-radius: 10px 10px 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .actions-title {
-  font-weight: bold;
-  color: #00ff88;
+  font-weight: 700;
+  color: var(--panel-border);
   margin: 0;
   font-size: 1rem;
-  text-shadow: 0 0 10px #00ff88;
+  letter-spacing: 0.3px;
+  text-shadow: 0 0 8px rgba(0, 255, 136, 0.2);
+  flex: 1;
+}
+
+.actions-toggle-btn {
+  background: rgba(0, 255, 136, 0.15);
+  border: 1.5px solid var(--panel-border);
+  color: var(--panel-border);
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+.actions-toggle-btn:hover {
+  background: rgba(0, 255, 136, 0.25);
+  box-shadow: 0 0 12px rgba(0, 255, 136, 0.4), inset 0 0 8px rgba(0, 255, 136, 0.1);
+  transform: translateY(-1px);
+}
+
+.actions-toggle-btn:active {
+  transform: scale(0.92);
+  box-shadow: inset 0 0 8px rgba(0, 255, 136, 0.2);
+}
+
+.game-actions-panel.collapsed .actions-header {
+  border-radius: 10px;
+}
+
+.game-actions-panel.collapsed .actions-content {
+  display: none;
 }
 
 .actions-content {
@@ -31,16 +81,41 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  background: var(--panel-bg-light);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.actions-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.actions-content::-webkit-scrollbar-track {
+  background: rgba(0, 255, 136, 0.05);
+  border-radius: 10px;
+}
+
+.actions-content::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 136, 0.3);
+  border-radius: 10px;
+  transition: background 0.2s ease;
+}
+
+.actions-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 136, 0.5);
 }
 
 .action-hint {
-  color: #a0a0a0;
+  background: rgba(0, 255, 136, 0.08);
+  border: 1px solid rgba(0, 255, 136, 0.2);
+  color: var(--panel-text-secondary);
   font-size: 0.8rem;
   margin: 0;
-  padding: 0.5rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
+  padding: 0.65rem 0.75rem;
+  border-radius: 6px;
   text-align: center;
+  font-weight: 500;
+  letter-spacing: 0.2px;
 }
 
 /* Hand section */
@@ -107,17 +182,39 @@
 
 /* Action buttons */
 .action-button {
-  padding: 0.6rem 1rem;
-  font-size: 0.85rem;
-  font-weight: bold;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-  text-align: center;
   position: relative;
-  overflow: hidden;
+  padding: 0.65rem 1.2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--panel-text-primary);
+  background: linear-gradient(135deg, rgba(0,255,136,0.13), rgba(0,153,255,0.09));
+  border: 2px solid var(--panel-border);
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,255,136,0.08);
+  transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+  outline: none;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-button-primary {
+  background: linear-gradient(135deg, rgba(0,255,136,0.18), rgba(0,153,255,0.13));
+  border-color: var(--panel-border);
+  color: var(--panel-text-primary);
+}
+
+.action-button-secondary {
+  background: linear-gradient(135deg, rgba(0,153,255,0.18), rgba(0,255,136,0.13));
+  border-color: #0099ff;
+  color: var(--panel-text-primary);
+}
+
+.action-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .action-button::before {
@@ -128,7 +225,7 @@
   width: 0;
   height: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.2);
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
@@ -148,47 +245,6 @@
     height: 300px;
     opacity: 0;
   }
-}
-
-.action-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.action-button-primary {
-  background: #00ff88;
-  color: #000;
-  box-shadow: 0 4px 15px rgba(0, 255, 136, 0.2);
-}
-
-.action-button-primary:hover:not(:disabled) {
-  background: #00dd66;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 25px rgba(0, 255, 136, 0.4);
-}
-
-.action-button-primary:active:not(:disabled) {
-  transform: translateY(0);
-  box-shadow: 0 2px 10px rgba(0, 255, 136, 0.3);
-}
-
-.action-button-secondary {
-  background: rgba(0, 153, 255, 0.25);
-  color: #0099ff;
-  border: 2px solid #0099ff;
-  box-shadow: 0 2px 10px rgba(0, 153, 255, 0.2);
-}
-
-.action-button-secondary:hover:not(:disabled) {
-  background: rgba(0, 153, 255, 0.4);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 20px rgba(0, 153, 255, 0.3);
-};
-  transform: scale(1.05);
-}
-
-.action-button-secondary:active:not(:disabled) {
-  transform: scale(0.98);
 }
 
 /* Scrollbar styling */

@@ -1,17 +1,20 @@
+@import './FloatingPanels.css';
+
 .collapsible-hand-panel {
   position: relative;
   width: 100%;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  max-width: 340px;
 }
 
 /* Botón toggle */
 .hand-toggle-button {
-  width: 3rem;
-  height: 3rem;
-  background: rgba(0, 0, 0, 0.85);
-  border: 2px solid #00ff88;
+  width: 3.2rem;
+  height: 3.2rem;
+  background: var(--panel-bg-dark);
+  border: 2px solid var(--panel-border);
   border-radius: 8px;
   backdrop-filter: blur(10px);
   cursor: pointer;
@@ -19,29 +22,31 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
-  box-shadow: 0 0 10px rgba(0, 255, 136, 0.2);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--panel-shadow);
+  font-weight: 600;
 }
 
 .hand-toggle-button:hover {
-  background: rgba(0, 0, 0, 0.95);
-  box-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
-  transform: scale(1.05);
+  background: var(--panel-bg-light);
+  box-shadow: var(--panel-shadow-hover);
+  transform: translateY(-2px);
+  border-color: var(--panel-accent);
 }
 
 .hand-toggle-button:active {
-  transform: scale(0.95);
+  transform: scale(0.92);
 }
 
 /* Panel colapsado contenido */
 .collapsed-hand-content {
-  background: rgba(0, 0, 0, 0.85);
-  border: 2px solid #00ff88;
-  border-radius: 8px;
+  background: var(--panel-bg-dark);
+  border: 2px solid var(--panel-border);
+  border-radius: 12px;
   backdrop-filter: blur(10px);
-  padding: 0.5rem;
+  padding: 0;
   animation: slideDown 0.3s ease-out;
-  box-shadow: 0 0 15px rgba(0, 255, 136, 0.2);
+  box-shadow: var(--panel-shadow);
 }
 
 @keyframes slideDown {
@@ -55,39 +60,66 @@
   }
 }
 
-@keyframes slideUp {
-  from {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-}
-
 .collapsed-hand-header {
-  background: rgba(0, 255, 136, 0.1);
-  border-bottom: 1px solid rgba(0, 255, 136, 0.3);
-  padding: 0.5rem;
-  border-radius: 6px 6px 0 0;
-  margin-bottom: 0.5rem;
+  background: linear-gradient(135deg, rgba(0, 255, 136, 0.12), rgba(0, 255, 136, 0.05));
+  border-bottom: 1px solid rgba(0, 255, 136, 0.4);
+  padding: 0.875rem 1rem;
+  border-radius: 10px 10px 0 0;
+  margin-bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .collapsed-hand-title {
-  font-weight: bold;
-  color: #00ff88;
-  font-size: 0.85rem;
-  text-shadow: 0 0 10px #00ff88;
+  font-weight: 700;
+  color: var(--panel-border);
+  font-size: 0.95rem;
+  letter-spacing: 0.2px;
+  text-shadow: 0 0 8px rgba(0, 255, 136, 0.2);
+  margin: 0;
+}
+
+.collapsed-hand-count {
+  background: rgba(0, 255, 136, 0.15);
+  padding: 0.25rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: var(--panel-border);
+  font-weight: 600;
+}
+
+.collapsed-hand-body {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.collapsed-hand-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.collapsed-hand-body::-webkit-scrollbar-track {
+  background: rgba(0, 255, 136, 0.05);
+  border-radius: 10px;
+}
+
+.collapsed-hand-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 136, 0.3);
+  border-radius: 10px;
+}
+
+.collapsed-hand-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 136, 0.5);
 }
 
 .collapsed-hand-cards {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  max-height: calc(100vh - 12rem);
-  overflow-y: auto;
-  padding: 0.25rem;
 }
 
 .collapsed-hand-card {

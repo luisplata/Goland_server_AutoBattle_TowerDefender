@@ -1,6 +1,9 @@
 import './GameActionsPanel.css'
+import { useState } from 'react'
 
 export default function GameActionsPanel({ state, playerId, onCommand, selectedTile, selectedCard, onSelectCard, gameMap }) {
+  const [isExpanded, setIsExpanded] = useState(true)
+
   if (!state || !playerId) {
     return null
   }
@@ -88,20 +91,29 @@ export default function GameActionsPanel({ state, playerId, onCommand, selectedT
   // Fase de selección de base
   if (shouldShowBaseSelection) {
     return (
-      <div className="game-actions-panel">
+      <div className={`game-actions-panel ${isExpanded ? 'expanded' : 'collapsed'}`}>
         <div className="actions-header">
           <div className="actions-title">🏰 Place Base</div>
-        </div>
-        <div className="actions-content">
-          <p className="action-hint">Click on the map to select a position</p>
           <button 
-            className="action-button action-button-primary"
-            onClick={handlePlaceBase}
-            disabled={!selectedTile}
+            className="actions-toggle-btn"
+            onClick={() => setIsExpanded(!isExpanded)}
+            title={isExpanded ? 'Collapse' : 'Expand'}
           >
-            Place Base Here
+            {isExpanded ? '▼' : '▶'}
           </button>
         </div>
+        {isExpanded && (
+          <div className="actions-content">
+            <p className="action-hint">Click on the map to select a position</p>
+            <button 
+              className="action-button action-button-primary"
+              onClick={handlePlaceBase}
+              disabled={!selectedTile}
+            >
+              Place Base Here
+            </button>
+          </div>
+        )}
       </div>
     )
   }
@@ -109,28 +121,37 @@ export default function GameActionsPanel({ state, playerId, onCommand, selectedT
   // Fase de preparación - solo botones de acción
   if (shouldShowPreparation) {
     return (
-      <div className="game-actions-panel">
+      <div className={`game-actions-panel ${isExpanded ? 'expanded' : 'collapsed'}`}>
         <div className="actions-header">
           <div className="actions-title">⚡ Actions</div>
-        </div>
-        <div className="actions-content">
-          {/* Spawn button */}
           <button 
-            className="action-button action-button-primary"
-            onClick={handleSpawnUnit}
-            disabled={!selectedCard || !selectedTile}
+            className="actions-toggle-btn"
+            onClick={() => setIsExpanded(!isExpanded)}
+            title={isExpanded ? 'Collapse' : 'Expand'}
           >
-            Spawn Unit
+            {isExpanded ? '▼' : '▶'}
           </button>
+        </div>
+        {isExpanded && (
+          <div className="actions-content">
+            {/* Spawn button */}
+            <button 
+              className="action-button action-button-primary"
+              onClick={handleSpawnUnit}
+              disabled={!selectedCard || !selectedTile}
+            >
+              Spawn Unit
+            </button>
 
-          {/* End turn button */}
-          <button 
-            className="action-button action-button-secondary"
-            onClick={handleEndTurn}
-          >
-            End Turn
-          </button>
-        </div>
+            {/* End turn button */}
+            <button 
+              className="action-button action-button-secondary"
+              onClick={handleEndTurn}
+            >
+              End Turn
+            </button>
+          </div>
+        )}
       </div>
     )
   }

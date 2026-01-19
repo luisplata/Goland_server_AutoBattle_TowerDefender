@@ -1,0 +1,226 @@
+/* ===== Estilos Compartidos para Paneles Flotantes ===== */
+
+:root {
+  --panel-bg-dark: rgba(15, 15, 20, 0.92);
+  --panel-bg-light: rgba(30, 30, 40, 0.95);
+  --panel-border: #00ff88;
+  --panel-accent: #4CAF50;
+  --panel-border-secondary: rgba(0, 255, 136, 0.3);
+  --panel-text-primary: #ffffff;
+  --panel-text-secondary: #a0a0a0;
+  --panel-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 0 12px rgba(0, 255, 136, 0.15);
+  --panel-shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 255, 136, 0.25);
+}
+
+/* ===== Panel Base ===== */
+.floating-panel {
+  position: relative;
+  width: 100%;
+  background: var(--panel-bg-dark);
+  border: 2px solid var(--panel-border);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+  box-shadow: var(--panel-shadow);
+  overflow: hidden;
+}
+
+.floating-panel:hover {
+  box-shadow: var(--panel-shadow-hover);
+  border-color: var(--panel-accent);
+}
+
+.floating-panel.collapsed {
+  border-radius: 12px;
+}
+
+/* ===== Panel Header ===== */
+.panel-header {
+  background: linear-gradient(135deg, rgba(0, 255, 136, 0.12), rgba(0, 255, 136, 0.05));
+  border-bottom: 1px solid rgba(0, 255, 136, 0.4);
+  padding: 0.875rem 1rem;
+  border-radius: 10px 10px 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.panel-header.collapsed {
+  border-radius: 10px;
+}
+
+.panel-title {
+  font-weight: 700;
+  color: var(--panel-border);
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: 0.3px;
+  text-shadow: 0 0 8px rgba(0, 255, 136, 0.2);
+  flex: 1;
+}
+
+/* ===== Toggle Button ===== */
+.panel-toggle-btn {
+  background: rgba(0, 255, 136, 0.15);
+  border: 1.5px solid var(--panel-border);
+  color: var(--panel-border);
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+.panel-toggle-btn:hover {
+  background: rgba(0, 255, 136, 0.25);
+  box-shadow: 0 0 12px rgba(0, 255, 136, 0.4), inset 0 0 8px rgba(0, 255, 136, 0.1);
+  transform: translateY(-1px);
+}
+
+.panel-toggle-btn:active {
+  transform: scale(0.92);
+  box-shadow: inset 0 0 8px rgba(0, 255, 136, 0.2);
+}
+
+/* ===== Panel Content ===== */
+.panel-content {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: var(--panel-bg-light);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.panel-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.panel-content::-webkit-scrollbar-track {
+  background: rgba(0, 255, 136, 0.05);
+  border-radius: 10px;
+}
+
+.panel-content::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 136, 0.3);
+  border-radius: 10px;
+  transition: background 0.2s ease;
+}
+
+.panel-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 136, 0.5);
+}
+
+.floating-panel.collapsed .panel-content {
+  display: none;
+}
+
+/* ===== Panel Row ===== */
+.panel-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(0, 255, 136, 0.1);
+  color: var(--panel-text-primary);
+  font-size: 0.9rem;
+}
+
+.panel-row:last-child {
+  border-bottom: none;
+}
+
+.panel-label {
+  color: var(--panel-text-secondary);
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.2px;
+}
+
+.panel-value {
+  color: var(--panel-text-primary);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+/* ===== Action Button ===== */
+.panel-button {
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.panel-button-primary {
+  background: linear-gradient(135deg, var(--panel-accent), #66BB6A);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+}
+
+.panel-button-primary:hover:not(:disabled) {
+  box-shadow: 0 6px 16px rgba(76, 175, 80, 0.5);
+  transform: translateY(-2px);
+  background: linear-gradient(135deg, #66BB6A, #81C784);
+}
+
+.panel-button-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.panel-button-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.panel-button-secondary {
+  background: rgba(100, 150, 200, 0.2);
+  color: #90CAF9;
+  border: 1px solid rgba(144, 202, 249, 0.5);
+  box-shadow: 0 2px 8px rgba(100, 150, 200, 0.2);
+}
+
+.panel-button-secondary:hover:not(:disabled) {
+  background: rgba(100, 150, 200, 0.3);
+  box-shadow: 0 4px 12px rgba(100, 150, 200, 0.3);
+  transform: translateY(-2px);
+}
+
+.panel-button-secondary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.panel-button-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== Divider ===== */
+.panel-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 255, 136, 0.3), transparent);
+  margin: 0.5rem 0;
+}
+
+/* ===== Info Badge ===== */
+.panel-info {
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  color: var(--panel-text-secondary);
+  font-size: 0.8rem;
+  text-align: center;
+}

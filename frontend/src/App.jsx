@@ -8,6 +8,8 @@ import GameCardDetailsPanel from './components/GameCardDetailsPanel'
 import GameEventLog from './components/GameEventLog'
 import CanvasMapViewer from './components/CanvasMapViewer'
 import UnitLegend from './components/UnitLegend'
+import UnitDetailsModal from './components/UnitDetailsModal'
+import './components/FloatingPanels.css'
 import './App.css'
 
 function App() {
@@ -20,16 +22,27 @@ function App() {
   const [selectedTile, setSelectedTile] = useState(null)
   const [lastTurn, setLastTurn] = useState(null)
   const [selectedUnitId, setSelectedUnitId] = useState(null)
+  const [selectedUnit, setSelectedUnit] = useState(null)
   const [selectedCard, setSelectedCard] = useState(null)
   const [gameOver, setGameOver] = useState(null) // { loserId, winnerId, reason }
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:7070'
   const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:7070/ws'
 
+  // Actualizar selectedUnit cuando cambien sus stats en gameState
+  useEffect(() => {
+    if (selectedUnit && gameState?.units && gameState.units[selectedUnit.id]) {
+      const updatedUnit = gameState.units[selectedUnit.id]
+      // Solo actualizar si cambió algo importante (HP, estado, etc)
+      setSelectedUnit({...updatedUnit})
+    }
+  }, [gameState?.units])
+
   // Limpiar selección cuando cambia el turno
   useEffect(() => {
     if (gameState?.currentPlayerTurn && lastTurn !== null && gameState.currentPlayerTurn !== lastTurn) {
       setSelectedTile(null)
+      setSelectedUnit(null)
     }
     setLastTurn(gameState?.currentPlayerTurn)
   }, [gameState?.currentPlayerTurn])
@@ -413,6 +426,7 @@ function App() {
                 units={gameState?.units} 
                 selectedTile={selectedTile}
                 onSelectTile={(tile) => setSelectedTile(tile)}
+                onSelectUnit={(unit) => setSelectedUnit(unit)}
                 disableZoom={false}
                 playerId={playerId}
                 selectedCard={selectedCard}
@@ -434,6 +448,15 @@ function App() {
               />
             </div>
           </div>
+        )}
+
+        {/* Unit Details Modal */}
+        {selectedUnit && (
+          <UnitDetailsModal 
+            unit={selectedUnit} 
+            playerId={playerId}
+            onClose={() => setSelectedUnit(null)}
+          />
         )}
       </div>
     </div>

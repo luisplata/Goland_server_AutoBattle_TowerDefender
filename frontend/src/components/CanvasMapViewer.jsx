@@ -30,7 +30,7 @@ const getUnitEmoji = (unitType) => UNIT_EMOJIS[unitType] || UNIT_EMOJIS.default
 
 const getTeamColor = (playerId) => TEAM_COLORS[playerId] || '#666'
 
-export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelectTile, disableZoom = false, playerId, selectedCard }) {
+export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelectTile, disableZoom = false, playerId, selectedCard, onSelectUnit }) {
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
@@ -38,6 +38,8 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
   const [selectedUnitId, setSelectedUnitId] = useState(null)
   const [touchStartTime, setTouchStartTime] = useState(0)
   const [lastTouchDistance, setLastTouchDistance] = useState(0)
+  const [lastClickTime, setLastClickTime] = useState(0)
+  const [lastClickTile, setLastClickTile] = useState(null)
   const containerRef = useRef(null)
   const canvasRef = useRef(null)
 
@@ -334,16 +336,27 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
           const tile = gameMap.tiles[y][x]
           const tileData = { x, y, walkable: tile.walkable }
           
+          const currentTime = Date.now()
+          const timeSinceLastClick = currentTime - lastClickTime
+          const isDoubleTap = timeSinceLastClick < 300 && lastClickTile && 
+                              lastClickTile.x === tileData.x && lastClickTile.y === tileData.y
+          
+          setLastClickTime(currentTime)
+          setLastClickTile(tileData)
+          
           if (onSelectTile) onSelectTile(tileData)
           
-          // Check for unit at tile
-          if (units) {
+          // Solo mostrar detalles con doble tap
+          if (isDoubleTap && units) {
             const unitAtTile = Object.values(units).find(u => u.x === x && u.y === y)
             if (unitAtTile) {
               setSelectedUnitId(unitAtTile.id)
-            } else {
-              setSelectedUnitId(null)
+              if (onSelectUnit) onSelectUnit(unitAtTile)
             }
+          } else {
+            // Single tap: deseleccionar unidad
+            setSelectedUnitId(null)
+            if (onSelectUnit) onSelectUnit(null)
           }
         }
       }
@@ -353,7 +366,7 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
       setIsPanning(true)
       setStartPan({ x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y })
     }
-  }, [touchStartTime, pan, zoom, gameMap, units, onSelectTile])
+  }, [touchStartTime, pan, zoom, gameMap, units, onSelectTile, lastClickTime, lastClickTile])
 
   // Register event listeners
   // Ref para rastrear si ya inicializamos el zoom
@@ -430,15 +443,30 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
   const handleClick = (e) => {
     if (isPanning || e.button !== 0) return
     const tile = pickTileFromEvent(e)
-    if (tile && onSelectTile) onSelectTile(tile)
     
-    // Check if there's a unit at this position
-    if (tile && units) {
-      const unitAtTile = Object.values(units).find(u => u.x === tile.x && u.y === tile.y)
-      if (unitAtTile) {
-        setSelectedUnitId(unitAtTile.id)
+    const currentTime = Date.now()
+    const timeSinceLastClick = currentTime - lastClickTime
+    const isDoubleClick = timeSinceLastClick < 300 && lastClickTile && 
+                          lastClickTile.x === tile?.x && lastClickTile.y === tile?.y
+    
+    if (tile) {
+      setLastClickTime(currentTime)
+      setLastClickTile(tile)
+      
+      // Siempre actualizar el tile seleccionado (single click)
+      if (onSelectTile) onSelectTile(tile)
+      
+      // Solo mostrar detalles con doble click
+      if (isDoubleClick && units) {
+        const unitAtTile = Object.values(units).find(u => u.x === tile.x && u.y === tile.y)
+        if (unitAtTile) {
+          setSelectedUnitId(unitAtTile.id)
+          if (onSelectUnit) onSelectUnit(unitAtTile)
+        }
       } else {
+        // Single click: deseleccionar unidad
         setSelectedUnitId(null)
+        if (onSelectUnit) onSelectUnit(null)
       }
     }
   }
@@ -492,12 +520,14 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
     }
 
     // Draw targeting lines for selected unit only
-    if (units && selectedUnitId && units[selectedUnitId]) {
-      const unit = units[selectedUnitId]
-      if (unit.targetId && units[unit.targetId]) {
-        const target = units[unit.targetId]
-        const cx = (unit.x + 0.5) * tileSize
-        const cy = (unit.y + 0.5) * tileSize
+    const selectedUnit = selectedUnitId && units && units[selectedUnitId] ? units[selectedUnitId] : 
+                        selectedTile && units ? Object.values(units).find(u => u.x === selectedTile.x && u.y === selectedTile.y) : null
+    
+    if (selectedUnit) {
+      if (selectedUnit.targetId && units[selectedUnit.targetId]) {
+        const target = units[selectedUnit.targetId]
+        const cx = (selectedUnit.x + 0.5) * tileSize
+        const cy = (selectedUnit.y + 0.5) * tileSize
         const targetCx = (target.x + 0.5) * tileSize
         const targetCy = (target.y + 0.5) * tileSize
         
@@ -521,7 +551,7 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
         const cy = (unit.y + 0.5) * tileSize
         const r = 0.5 * tileSize
         const hpPercent = unit.maxHp ? unit.hp / unit.maxHp : 1
-        const isSelected = unit.id === selectedUnitId
+        const isSelected = unit.id === selectedUnitId || (selectedTile && selectedTile.x === unit.x && selectedTile.y === unit.y)
 
         // Detection Range (área de cambio de target)
         if (unit.detectionRange > 0) {
