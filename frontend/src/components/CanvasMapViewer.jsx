@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import './MapViewer.css'
 
 const TERRAIN_COLORS = {
@@ -31,7 +31,7 @@ const getUnitEmoji = (unitType) => UNIT_EMOJIS[unitType] || UNIT_EMOJIS.default
 const getTeamColor = (playerId) => TEAM_COLORS[playerId] || '#666'
 
 export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelectTile, disableZoom = false, playerId, selectedCard }) {
-  const [zoom, setZoom] = useState(3)
+  const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
   const [startPan, setStartPan] = useState({ x: 0, y: 0 })
@@ -41,11 +41,45 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
   const containerRef = useRef(null)
   const canvasRef = useRef(null)
 
-  const tileSize = 3 // Base tile size in world units; zoom starts at 3 for perceived 100%
-  const MAX_ZOOM = 6 // Máximo zoom permitido
-  const MIN_ZOOM = 0.5 // Mínimo zoom permitido
+  const tileSize = 3 // Base tile size in world units
+  
+  // Calcular zoom inicial: mapa completo en pantalla
+  const calculateInitialZoom = useCallback(() => {
+    if (!containerRef.current || !gameMap) return 1
+    const rect = containerRef.current.getBoundingClientRect()
+    const viewportWidth = rect.width
+    const viewportHeight = rect.height
+    const mapPixelWidth = gameMap.width * tileSize
+    const mapPixelHeight = gameMap.height * tileSize
+    
+    // Zoom que hace que el mapa completo quepa en la pantalla sin espacios
+    const zoomByWidth = viewportWidth / mapPixelWidth
+    const zoomByHeight = viewportHeight / mapPixelHeight
+    return Math.min(zoomByWidth, zoomByHeight) // Usa el mínimo para que quepa todo
+  }, [gameMap])
+  
+  // Calcular zoom máximo: ver solo el 10% del mapa
+  const calculateMaxZoom = useCallback(() => {
+    if (!containerRef.current || !gameMap) return 10
+    const rect = containerRef.current.getBoundingClientRect()
+    const viewportWidth = rect.width
+    const viewportHeight = rect.height
+    const mapPixelWidth = gameMap.width * tileSize
+    const mapPixelHeight = gameMap.height * tileSize
+    
+    // Zoom máximo: ver solo el 10% del mapa
+    const tenPercentWidth = mapPixelWidth * 0.1
+    const tenPercentHeight = mapPixelHeight * 0.1
+    const maxZoomWidth = viewportWidth / tenPercentWidth
+    const maxZoomHeight = viewportHeight / tenPercentHeight
+    return Math.max(maxZoomWidth, maxZoomHeight)
+  }, [gameMap])
+  
+  const INITIAL_ZOOM = useMemo(() => calculateInitialZoom(), [calculateInitialZoom])
+  const MAX_ZOOM = useMemo(() => calculateMaxZoom(), [calculateMaxZoom])
+  const MIN_ZOOM = INITIAL_ZOOM // Zoom mínimo: no puede ser menor al inicial (confiner)
 
-  // Calcula los límites de pan para mantener el mapa visible
+  // Confiner de cámara: limita el pan para que nunca salga del mapa
   const getClampedPan = (panX, panY, zoomValue) => {
     if (!containerRef.current || !gameMap) return { x: panX, y: panY }
     
@@ -57,21 +91,27 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
     const mapWidth = gameMap.width * tileSize * zoomValue
     const mapHeight = gameMap.height * tileSize * zoomValue
     
-    // Limitar pan para no salir demasiado del mapa
+    // Confiner: la cámara nunca puede mostrar espacios vacíos
+    // El pan máximo es cuando el mapa cubre exactamente la pantalla
     let clampedX = panX
     let clampedY = panY
     
-    // Si el mapa es más grande que el viewport, permitir pan controlado
-    if (mapWidth > viewportWidth) {
-      clampedX = Math.max(-mapWidth + 50, Math.min(viewportWidth - 50, panX))
+    // Limitar X: el mapa debe ocupar el viewport
+    if (mapWidth >= viewportWidth) {
+      // Si el mapa es más grande que la pantalla, permitir pan pero sin dejar vacío
+      clampedX = Math.max(-mapWidth + viewportWidth, Math.min(0, panX))
     } else {
-      clampedX = Math.max(viewportWidth - mapWidth, Math.min(0, panX))
+      // Si el mapa es más pequeño, siempre centrarlo
+      clampedX = (viewportWidth - mapWidth) / 2
     }
     
-    if (mapHeight > viewportHeight) {
-      clampedY = Math.max(-mapHeight + 50, Math.min(viewportHeight - 50, panY))
+    // Limitar Y: el mapa debe ocupar el viewport
+    if (mapHeight >= viewportHeight) {
+      // Si el mapa es más grande que la pantalla, permitir pan pero sin dejar vacío
+      clampedY = Math.max(-mapHeight + viewportHeight, Math.min(0, panY))
     } else {
-      clampedY = Math.max(viewportHeight - mapHeight, Math.min(0, panY))
+      // Si el mapa es más pequeño, siempre centrarlo
+      clampedY = (viewportHeight - mapHeight) / 2
     }
     
     return { x: clampedX, y: clampedY }
@@ -111,12 +151,13 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
     if (!container) return
 
     const rect = container.getBoundingClientRect()
-    const delta = e.deltaY > 0 ? -0.2 : 0.2
+    // Usar factor multiplicativo para zoom proporcional
+    const zoomFactor = e.deltaY > 0 ? 0.8 : 1.25 // Zoom out = 0.8x, Zoom in = 1.25x
     const mouseX = e.clientX - rect.left
     const mouseY = e.clientY - rect.top
 
     setZoom(oldZoom => {
-      const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldZoom + delta))
+      const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldZoom * zoomFactor))
       if (oldZoom === newZoom) return oldZoom
       
       // Calcular la posición del mundo antes del zoom
@@ -138,7 +179,7 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
   }, [disableZoom, pan])
 
   // Zoom via buttons at center
-  const handleZoomAtCenter = useCallback((delta) => {
+  const handleZoomAtCenter = useCallback((direction) => {
     if (disableZoom) return
     const container = containerRef.current
     if (!container) return
@@ -146,8 +187,11 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
     const cx = rect.width / 2
     const cy = rect.height / 2
     
+    // Usar factor multiplicativo para zoom proporcional
+    const zoomFactor = direction > 0 ? 1.25 : 0.8 // Zoom in = 1.25x, Zoom out = 0.8x
+    
     setZoom(oldZoom => {
-      const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldZoom + delta))
+      const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldZoom * zoomFactor))
       if (oldZoom === newZoom) return oldZoom
       
       // Calcular la posición del mundo antes del zoom
@@ -166,7 +210,7 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
       
       return newZoom
     })
-  }, [disableZoom, pan])
+  }, [disableZoom, pan, MIN_ZOOM, MAX_ZOOM])
 
   // Mouse handlers for pan and click
   const handleMouseDown = (e) => {
@@ -312,6 +356,29 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
   }, [touchStartTime, pan, zoom, gameMap, units, onSelectTile])
 
   // Register event listeners
+  // Ref para rastrear si ya inicializamos el zoom
+  const isInitializedRef = useRef(false)
+
+  useEffect(() => {
+    // Inicializar zoom solo la primera vez cuando el mapa está listo
+    if (gameMap && containerRef.current && !isInitializedRef.current) {
+      isInitializedRef.current = true
+      const initialZoom = calculateInitialZoom()
+      setZoom(initialZoom)
+      
+      // Calcular pan inicial para centrar el mapa en pantalla
+      const rect = containerRef.current.getBoundingClientRect()
+      const viewportWidth = rect.width
+      const viewportHeight = rect.height
+      const mapWidth = gameMap.width * tileSize * initialZoom
+      const mapHeight = gameMap.height * tileSize * initialZoom
+      
+      const centerPanX = (viewportWidth - mapWidth) / 2
+      const centerPanY = (viewportHeight - mapHeight) / 2
+      setPan({ x: centerPanX, y: centerPanY })
+    }
+  }, [gameMap])
+
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
@@ -327,8 +394,23 @@ export default function CanvasMapViewer({ gameMap, units, selectedTile, onSelect
   }, [handleWheel, handleTouchMove])
 
   const resetView = () => {
-    setZoom(3)
-    setPan({ x: 0, y: 0 })
+    if (gameMap && containerRef.current) {
+      const initialZoom = calculateInitialZoom()
+      setZoom(initialZoom)
+      
+      // Calcular pan para centrar el mapa en pantalla
+      const rect = containerRef.current.getBoundingClientRect()
+      const viewportWidth = rect.width
+      const viewportHeight = rect.height
+      const mapWidth = gameMap.width * tileSize * initialZoom
+      const mapHeight = gameMap.height * tileSize * initialZoom
+      
+      const centerPanX = (viewportWidth - mapWidth) / 2
+      const centerPanY = (viewportHeight - mapHeight) / 2
+      setPan({ x: centerPanX, y: centerPanY })
+    } else {
+      setPan({ x: 0, y: 0 })
+    }
   }
 
   const pickTileFromEvent = (e) => {
