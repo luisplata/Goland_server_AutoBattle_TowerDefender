@@ -115,6 +115,62 @@ header h1 {
   overflow: hidden;
 }
 
+/* Left panels grid */
+.left-panels-grid {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  z-index: 100;
+  max-width: 320px;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}
+
+.left-panels-grid::-webkit-scrollbar {
+  width: 4px;
+}
+
+.left-panels-grid::-webkit-scrollbar-track {
+  background: rgba(0, 255, 136, 0.1);
+  border-radius: 2px;
+}
+
+.left-panels-grid::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 136, 0.3);
+  border-radius: 2px;
+}
+
+/* Right panels grid */
+.right-panels-grid {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  z-index: 100;
+  max-width: 280px;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}
+
+.right-panels-grid::-webkit-scrollbar {
+  width: 4px;
+}
+
+.right-panels-grid::-webkit-scrollbar-track {
+  background: rgba(0, 255, 136, 0.1);
+  border-radius: 2px;
+}
+
+.right-panels-grid::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 136, 0.3);
+  border-radius: 2px;
+}
+
 .game-layout .game-info-section {
   display: none;
 }

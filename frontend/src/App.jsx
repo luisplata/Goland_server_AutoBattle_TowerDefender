@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react'
 import GameBoard from './components/GameBoard'
 import GameControls from './components/GameControls'
+import GameStatusPanel from './components/GameStatusPanel'
+import GameActionsPanel from './components/GameActionsPanel'
+import CollapsibleGameHandPanel from './components/CollapsibleGameHandPanel'
+import GameCardDetailsPanel from './components/GameCardDetailsPanel'
+import GameEventLog from './components/GameEventLog'
 import CanvasMapViewer from './components/CanvasMapViewer'
 import UnitLegend from './components/UnitLegend'
 import './App.css'
@@ -348,6 +353,47 @@ function App() {
                 </div>
               </div>
             )}
+            
+            {/* Left panels grid */}
+            <div className="left-panels-grid">
+              <GameStatusPanel 
+                state={gameState}
+                playerId={playerId}
+                gameId={gameId}
+              />
+              
+              <GameActionsPanel 
+                state={gameState}
+                playerId={playerId}
+                onCommand={sendCommand}
+                selectedTile={selectedTile}
+                selectedCard={selectedCard}
+                onSelectCard={setSelectedCard}
+                gameMap={gameState?.map}
+              />
+            </div>
+            
+            {/* Right panels grid */}
+            <div className="right-panels-grid">
+              <CollapsibleGameHandPanel 
+                state={gameState}
+                playerId={playerId}
+                selectedCard={selectedCard}
+                onSelectCard={setSelectedCard}
+              />
+              
+              <GameCardDetailsPanel 
+                state={gameState}
+                playerId={playerId}
+                selectedCard={selectedCard}
+              />
+            </div>
+            
+            {/* Game Event Log - Floating bottom */}
+            <GameEventLog 
+              state={gameState}
+              playerId={playerId}
+            />
             
             {/* Info panel: GameBoard + UnitLegend */}
             <div className="game-info-section">

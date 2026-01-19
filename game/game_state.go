@@ -54,13 +54,13 @@ type GameState struct {
 	Map          *GameMap           `json:"map"`
 
 	// Phase-based system
-	CurrentPhase         GamePhase   `json:"currentPhase"`  // Fase actual del juego
-	TurnNumber           int         `json:"turnNumber"`    // Número de turno actual
-	PhaseStartTick       int         `json:"-"`             // Tick en el que empezó la fase actual
-	PhaseChangedThisTick bool        `json:"-"`             // Flag para indicar si la fase cambió este tick
-	AIPlayerID           int         `json:"aiPlayerId"`    // ID del jugador AI
-	HumanPlayerID        int         `json:"humanPlayerId"` // ID del jugador humano
-	Config               PhaseConfig `json:"config"`        // Configuración de duración de fases
+	CurrentPhase         GamePhase   `json:"currentPhase"`   // Fase actual del juego
+	TurnNumber           int         `json:"turnNumber"`     // Número de turno actual
+	PhaseStartTick       int         `json:"phaseStartTick"` // Tick en el que empezó la fase actual
+	PhaseChangedThisTick bool        `json:"-"`              // Flag para indicar si la fase cambió este tick
+	AIPlayerID           int         `json:"aiPlayerId"`     // ID del jugador AI
+	HumanPlayerID        int         `json:"humanPlayerId"`  // ID del jugador humano
+	Config               PhaseConfig `json:"config"`         // Configuración de duración de fases
 
 	// Preparation phase flags
 	HumanPlayerReady bool `json:"humanPlayerReady"` // Si el jugador humano está listo
@@ -180,15 +180,16 @@ func NewGameState() *GameState {
 
 func NewGameStateWithSeed(seed int64) *GameState {
 	return &GameState{
-		Players:      make(map[int]*Player),
-		nextPlayerID: 1,
-		nextUnitID:   1,
-		Units:        make(map[int]*UnitState),
-		Map:          NewGameMap(seed),
-		CurrentPhase: PhaseBaseSelection,   // Empezar en fase de selección de base
-		TurnNumber:   0,                    // El turno 1 empieza después de colocar bases
-		Config:       DefaultPhaseConfig(), // Usar configuración por defecto
-		GameEnd:      &GameEndInfo{Pending: false},
+		Players:        make(map[int]*Player),
+		nextPlayerID:   1,
+		nextUnitID:     1,
+		Units:          make(map[int]*UnitState),
+		Map:            NewGameMap(seed),
+		CurrentPhase:   PhaseBaseSelection,   // Empezar en fase de selección de base
+		TurnNumber:     0,                    // El turno 1 empieza después de colocar bases
+		PhaseStartTick: 0,                    // Inicializar en tick 0
+		Config:         DefaultPhaseConfig(), // Usar configuración por defecto
+		GameEnd:        &GameEndInfo{Pending: false},
 	}
 }
 
@@ -270,6 +271,7 @@ func (g *GameState) GetSnapshot() GameState {
 		Map:              g.Map,
 		CurrentPhase:     g.CurrentPhase,
 		TurnNumber:       g.TurnNumber,
+		PhaseStartTick:   g.PhaseStartTick,
 		AIPlayerID:       g.AIPlayerID,
 		HumanPlayerID:    g.HumanPlayerID,
 		HumanPlayerReady: g.HumanPlayerReady,
