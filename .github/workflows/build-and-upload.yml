@@ -42,9 +42,9 @@ jobs:
       - name: Build frontend
         run: npm run build
       - name: Zip frontend build
-        run: zip -r ../frontend_build.zip dist
+        run: zip -r frontend_build.zip dist
       - name: Upload frontend zip
         uses: actions/upload-artifact@v4
         with:
           name: frontend-zip
-          path: ../frontend_build.zip
+          path: frontend_build.zip
