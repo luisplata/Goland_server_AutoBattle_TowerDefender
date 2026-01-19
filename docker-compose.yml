@@ -11,3 +11,13 @@ services:
     ports:
       - "7070:7070"
     restart: unless-stopped
+  postgres:
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_USER: gameuser
+      POSTGRES_PASSWORD: gamepass
+      POSTGRES_DB: gamedb
+    ports:
+      - "5432:5432"
+    # Sin volumen persistente, los datos se perderán al reiniciar el contenedor

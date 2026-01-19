@@ -8,6 +8,11 @@ import (
 )
 
 func main() {
+	if err := InitDB(); err != nil {
+		slog.Error("No se pudo conectar a la base de datos", "error", err)
+		return
+	}
+
 	gameManager := game.NewGameManager()
 	wsHub := network.NewWsHub()
 
